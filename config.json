@@ -1,0 +1,53 @@
+{
+  "城镇内": {
+    "练兵": true,
+    "升级建筑": false,
+    "仓库": true,
+    "体力": false,
+    "宠物寻宝": true,
+    "升级科技": false,
+    "银行日存": true,
+    "免费招募": true,
+    "指令-立即生产": false,
+    "火精实验": true,
+    "5折超提炼": true,
+    "每日任务": true,
+    "领取邮件": true,
+    "统帅领取": true
+  },
+  "野外": {
+    "采集": true,
+    "采集内容": false,
+    "灯塔任务": false,
+    "发车": false,
+    "发车场景": false,
+    "打怪类型": false,
+    "发车必用吉娜": true,
+    "联盟矿": true,
+    "自动打熊": false
+  },
+  "其它": {
+    "上车选择": false,
+    "联盟捐献": false,
+    "联盟互助": true,
+    "联盟箱子领取": false,
+    "治疗": true
+  },
+  "晨曦岛": {
+    "小岛收集": true,
+    "小岛协助": true,
+    "晨曦回礼": true
+  },
+  "阶段性任务": {
+    "总动员刷任务": true,
+    "刷到就接受": false,
+    "单打佣兵": false,
+    "争霸赛报名": false,
+    "英雄殿堂领取": false
+  },
+  "_metadata": {
+    "last_modified": "2025-12-26 17:50:52",
+    "total_functions": 36,
+    "enabled_functions": 19
+  }
+}

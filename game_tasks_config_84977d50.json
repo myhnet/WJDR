@@ -1,0 +1,47 @@
+{
+  "城镇内": {
+    "练兵": true,
+    "仓库收益": true,
+    "探险收益": true,
+    "宠物寻宝": true,
+    "火晶实验": true,
+    "银行日存": true,
+    "每日奖励": true,
+    "地心探险": true,
+    "忠诚军牌": true,
+    "火晶深度探秘": true,
+    "竞技场": true,
+    "领取体力": true
+  },
+  "野外": {
+    "统帅领取": true,
+    "游荡商人": true,
+    "免费招募": true,
+    "采集": true,
+    "自动上车": true,
+    "自动打巨兽": true,
+    "游历补给": true,
+    "任务奖励": true,
+    "情报处理": true
+  },
+  "联盟任务": {
+    "联盟捐献": true,
+    "联盟宝箱": true,
+    "红包与互助": true
+  },
+  "其他": {
+    "晨曦岛": true,
+    "更新上车记录": true,
+    "更新盟矿": true,
+    "阅读邮件": true
+  },
+  "阶段性任务": {
+    "总动员刷任务": false,
+    "冰封的宝藏": true
+  },
+  "_metadata": {
+    "last_modified": "2026-01-05 11:40:05",
+    "total_functions": 30,
+    "enabled_functions": 29
+  }
+}

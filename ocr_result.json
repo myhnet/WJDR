@@ -1,0 +1,53 @@
+{
+  'title': '挑战列表',
+  'my_power': '17,103,787',
+  'my_power_numeric': 17103787,
+  'players': [
+    {
+      'full_name': '[NGK]三十尘土',
+      'prefix': '[NGK]',
+      'chinese_name': '三十尘土',
+      'combat_power': '9379.4万',
+      'combat_power_numeric': 93794000.0,
+      'score': '1,103',
+      'score_numeric': 1103,
+      'rank': '#209',
+      'rank_numeric': 209
+    },
+    {
+      'full_name': '[BLD]卟言竺喻',
+      'prefix': '[BLD]',
+      'chinese_name': '卟言竺喻',
+      'combat_power': '2290.2万',
+      'combat_power_numeric': 22902000.0,
+      'score': '1,095',
+      'score_numeric': 1095,
+      'rank': '#212',
+      'rank_numeric': 212
+    },
+    {'full_name': '[OvO]暴躁疯子',
+      'prefix': '[OvO]',
+      'chinese_name': '暴躁疯子',
+      'combat_power': '3705.9万',
+      'combat_power_numeric': 37059000.0,
+      'score': '1,093', 'score_numeric': 1093,
+      'rank': '#212', 'rank_numeric': 212
+    },
+    {
+      'full_name': '[ZHF]越风',
+      'prefix': '[ZHF]',
+      'chinese_name': '越风',
+      'combat_power': '1366.0万',
+      'combat_power_numeric': 13660000.0,
+      'score': '1,077',
+      'score_numeric': 1077,
+      'rank': '#213',
+      'rank_numeric': 213
+    },
+    {
+      'full_name': '[PRO]神降大陆2',
+      'prefix': '[PRO]',
+      'chinese_name': '神降大陆2',
+      'combat_power': '1324.0万',
+      'combat_power_numeric': 13240000.0,
+      'score': '1,077', 'score_numeric': 1077, 'rank': '#213', 'rank_numeric': 213}], 'remaining_challenges': 0, 'refresh_button': '免费刷新'}

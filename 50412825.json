@@ -1,0 +1,214 @@
+{
+    "id": "50412825",
+    "username": "糖果弟弟",
+    "unionAbbr": "SKZ",
+    "mainCityStage": 0,
+    "mainCityLevel": 30,
+    "powerNum": 53793157,
+    "region": "",
+    "marchQueueNum": 1,
+    "powerNumTeam1": 0,
+    "buildingQueueNum": 1,
+    "soldierTotal": 0,
+    "marchCapacity": 0,
+    "bankOneDayUnlocked": false,
+    "stats": {
+        "pageStatus": 1,
+        "userInfoNextTime": {
+            "__type__": "datetime",
+            "value": "2025-12-20T00:54:57.969264"
+        },
+        "marchQueueIdleNum": 1,
+        "marchQueueCompleteTime": null,
+        "marchQueueList": [],
+        "buildingQueueIdleNum": 1,
+        "buildingUpgradeCompleteTimeList": [],
+        "buildingWaitingTime": null,
+        "researchTechnologyNextTime": null,
+        "researchTechnologyWaitingTime": null,
+        "arenaFreeNum": 5,
+        "arenaDiamondNum": 0,
+        "unionTreasureChestReachedLimit": false,
+        "unionTreasureChestNextTime": {
+            "__type__": "datetime",
+            "value": "2025-12-19T15:00:34.660229"
+        },
+        "unionActiveIncentiveClaimed": false,
+        "unionContributeNum": 0,
+        "unionContributeNextTime": {
+            "__type__": "datetime",
+            "value": "2025-12-19T16:06:46.530326"
+        },
+        "wanderingMerchantReachedLimit": false,
+        "mysteriousShopReachedLimit": false,
+        "leaderShopReachedLimit": false,
+        "heroRecruitFreeNum": 5,
+        "heroRecruitNextTime": {
+            "__type__": "datetime",
+            "value": "2025-12-19T12:56:28.917951"
+        },
+        "petTreasureHuntRemainingNum": null,
+        "petTreasureUnionTreasureChestRemainingNum": null,
+        "petTreasureHuntNextTime": null,
+        "petSkillsNextTime": [],
+        "leaderExpReceive": false,
+        "lighthouseIntelligenceNextTime": null,
+        "staminaNum": 0,
+        "bankNextTime": {
+            "__type__": "datetime",
+            "value": "2025-12-31T10:18:25.599518"
+        },
+        "warehouseSupplyNextTime": {
+            "__type__": "datetime",
+            "value": "2025-12-19T12:57:06.469867"
+        },
+        "warehousePhysicalStrengthNextTime": {
+            "__type__": "datetime",
+            "value": "2025-12-19T17:59:54"
+        },
+        "exploreRewardNextTime": {
+            "__type__": "datetime",
+            "value": "2025-12-19T17:38:31.826554"
+        },
+        "trainSoldiersNextTime": [
+            {
+                "__type__": "datetime",
+                "value": "2025-12-19T21:10:16.198688"
+            },
+            {
+                "__type__": "datetime",
+                "value": "2025-12-19T21:10:18.260842"
+            },
+            {
+                "__type__": "datetime",
+                "value": "2025-12-19T21:10:19.229398"
+            }
+        ],
+        "trainSoldiersWaitingTimeList": [
+            null,
+            null,
+            null
+        ],
+        "barracksPriorityPromotion": true,
+        "lastTrainHighestSoldiersList": [
+            true,
+            true,
+            true
+        ],
+        "taskRewardNextTime": {
+            "__type__": "datetime",
+            "value": "2025-12-19T15:00:17.889350"
+        },
+        "mailNextTime": {
+            "__type__": "datetime",
+            "value": "2025-12-19T14:45:41.888700"
+        },
+        "snowfieldTradeRouteNextTime": null,
+        "treeOfLifeNextTime": {
+            "__type__": "datetime",
+            "value": "2025-12-19T17:33:01.938026"
+        },
+        "giftOfDawnNextTime": {
+            "__type__": "datetime",
+            "value": "2025-12-19T16:26:57.402115"
+        },
+        "wanderingMerchantNextTime": null,
+        "commanderDailyRewardsNextTime": null,
+        "storeValueCenterNextTime": null,
+        "unionHelpNextTime": {
+            "__type__": "datetime",
+            "value": "2025-12-19T13:05:23.122800"
+        },
+        "lighthouseIntelligenceMaxLevel": null,
+        "collectResourcesTravelTime": [
+            null,
+            null,
+            null,
+            null
+        ],
+        "collectResourcesNextTime": [
+            null,
+            null,
+            null,
+            null
+        ],
+        "collectResourcesUnionMineIndex": null,
+        "collectResourcesUnionMineNextTime": null,
+        "unionMobilizationNextTime": null,
+        "unionMobilizationParams": {
+            "currentAcceptedTask": false,
+            "exclusive2xTaskLastCompleteDate": null,
+            "exclusiveTaskLastRefreshDate": null
+        },
+        "lordCommandNextTime": null,
+        "crystalRefiningLaboratoryNextTime": null,
+        "travelSupplyNextTime": null,
+        "roleSwitchNextTime": null,
+        "roleSwitchNameList": [],
+        "journeyToTheLightNextTime": null
+    },
+    "config": {
+        "wanderingMerchantEnable": true,
+        "wanderingMerchantDiscountGoodsList": [
+            {
+                "id": "ExpeditionSkillBook",
+                "name": "史诗远征技能书",
+                "discount_ge_buy": "-25%"
+            },
+            {
+                "id": "CommanderExperience",
+                "name": "统帅经验",
+                "discount_ge_buy": "-25%"
+            }
+        ],
+        "lighthouseIntelligenceEnable": true,
+        "snowfieldTradeRouteEnable": true,
+        "snowfieldTradeRouteShareList": [
+            {
+                "targetName": "雪原商路低战专用",
+                "powerMinNum": "0",
+                "powerMaxNum": "90,000,000",
+                "goodsQuality": 5
+            },
+            {
+                "targetName": "雪原商路",
+                "powerMinNum": "90,000,000",
+                "powerMaxNum": "250,000,000",
+                "goodsQuality": 0
+            },
+            {
+                "targetName": "联盟",
+                "powerMinNum": "250,000,000",
+                "powerMaxNum": "350,000,000",
+                "goodsQuality": 0
+            }
+        ],
+        "snowfieldTradeRouteGoodsQuality": 5,
+        "collectResourcesEnable": true,
+        "collectResourcesUnionMineEnable": true,
+        "collectResourcesSetLevelEnable": true,
+        "collectResourcesLevel": [
+            null,
+            null,
+            null,
+            null
+        ],
+        "unionMobilizationEnable": false,
+        "unionMobilizationConfigList": [
+            {
+                "template": "activities_regular/union_mobilization/training_for_soldiers.png",
+                "percentage": "120",
+                "describe": "percentage可选值120/200/null，为空时表示不限制倍率"
+            }
+        ],
+        "lordCommandEnable": true,
+        "crystalRefiningLaboratoryEnable": true,
+        "warehousePhysicalStrengthEnable": true,
+        "warehousePhysicalStrengthCollectionTime": 60,
+        "travelSupplyEnable": true,
+        "roleSwitchEnable": false,
+        "roleSwitchInterval": 60,
+        "roleSwitchNameList": null,
+        "journeyToTheLightEnable": true
+    }
+}

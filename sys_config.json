@@ -1,0 +1,26 @@
+{
+  "0": {
+    "id": 0,
+    "name": "肉炒辣椒",
+    "tab_name": "44f4aa9a",
+    "state": true
+  },
+  "1": {
+    "id": 1,
+    "name": "辣椒炒肉",
+    "tab_name": "88ac809e",
+    "state": true
+  },
+  "2": {
+    "id": 2,
+    "name": "蛮僮人",
+    "tab_name": "84977d50",
+    "state": true
+  },
+  "_metadata": {
+    "last_modified": "2025-12-30 06:54:19",
+    "mumu_path": "D:/Program Files/Netease/MuMu/nx_main/MuMuManager.exe",
+    "total_players": 3,
+    "enabled_player": 3
+  }
+}
