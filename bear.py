@@ -1,7 +1,6 @@
 import argparse
 import time
 from concurrent.futures import ThreadPoolExecutor
-import numpy
 import numpy as np
 from PIL import Image
 
@@ -9,9 +8,12 @@ from ImageMatcher import ImageMatcher
 from MumuManager import ADBController
 
 target_players = [
-    ['暧昧', '西瓜', '荷华', '节能', '土豆嫂牛肉', 'xy520', '可乐', '乱怼', '辣椒'],
-    ['暧昧', '西瓜', '荷华', '节能', '土豆嫂牛肉', 'xy520', '可乐', '乱怼', '肉'],
-    ['呆呆鱼', '龙大师', '小蔡头', '篱落', '相信光吗', '红色糖果', 'mars', 'S Lee', '粉色糖果']
+    ['辣椒', '暧昧', '木瓜', '三千梨花树', '节能', '土豆嫂牛肉', 'xy520', '可乐',
+     '乱怼', '荷华', '翅膀', '西瓜', '边边', '猴儿', '太美', '宫本'],
+    ['肉', '暧昧', '木瓜', '三千梨花树', '节能', '土豆嫂牛肉', 'xy520', '可乐',
+     '乱怼', '荷华', '翅膀', '西瓜', '边边', '猴儿', '太美', '宫本'],
+    ['元宝家的元宝', '河东盐运使', '辽东郡', '中年狗叔', '白色糖果',
+     '呆呆鱼', '红色糖果', 'mars', '龙大师', '粉色糖果', '相信光吗', '小蔡头']
 ]
 
 # hero_x = [100, 210, 320, 430, 540, 650, 760, 870]
@@ -32,12 +34,15 @@ class BearHunting:
 
         self.troops = {}
         self.templates = {}
+        self.joined_time = {}
 
         if template_paths:
             self.templates = self.load_templates(template_paths)
         if troop_paths:
             self.troops = self.load_templates(troop_paths)
 
+        # 每次循环都创建
+        self.executor = ThreadPoolExecutor(max_workers=20)
 
     @staticmethod
     def load_templates(paths: dict) -> dict:
@@ -55,52 +60,43 @@ class BearHunting:
             )
         return templates
 
-    def get_images_pos(self, timeout: int = 3,
-                       threshold: float = 0.95):
+    def get_images_pos(self, threshold: float = 0.95):
         # print(f"等待图像: {template_path}")
-        start_time = time.time()
 
-        while time.time() - start_time - 0.1 < timeout:
-            time.sleep(0.1)
-            screenshot = self.adb.screenshot()
-            template_keys = list(self.templates.keys())
-            template_values = list(self.templates.values())
-            with ThreadPoolExecutor(max_workers=16) as executor:
-                result = list(executor.map(
-                    lambda template: self.image_matcher.find_template(screenshot, template, threshold),
-                    template_values
-                ))
-            if result:
-                result = dict(zip(template_keys, result))
-                return result
+        template_keys = list(self.templates.keys())
+        template_values = list(self.templates.values())
 
-        # print(f"超时: 未找到图像 {template_path}")
-        return False
+        screenshot = self.adb.screenshot()
+        result = list(self.executor.map(
+            lambda template: self.image_matcher.find_template(screenshot, template, threshold),
+            template_values
+        ))
 
-    def _get_image_pos(self, template: numpy.ndarray, screenshot: numpy.ndarray,
-                       timeout: int = 3, threshold: float = 0.8,
+        result = dict(zip(template_keys, result))
+        return result
+
+    def _get_image_pos(self, template: np.ndarray, screenshot: np.ndarray, threshold: float = 0.8,
                        offset_x: int = 0, offset_y: int = 0):
-        start_time = time.time()
-        while time.time() - start_time - 0.1 < timeout:
-            position = self.image_matcher.find_template(screenshot, template, threshold)
-            if position:
-                x, y = position
-                x += offset_x
-                y += offset_y
-                return x, y
-            time.sleep(0.1)
+        position = self.image_matcher.find_template(screenshot, template, threshold)
+        if position:
+            x, y = position
+            x += offset_x
+            y += offset_y
+            return x, y
         return False
 
     def get_image_pos(self, template_path: str, timeout: int = 3,
                       threshold: float = 0.8, offset_x: int = 0, offset_y: int = 0):
         # print(f"等待图像: {template_path}")
         template = self.image_matcher.load_template(template_path)
-        screenshot = self.adb.screenshot()
-        result = self._get_image_pos(template=template, screenshot=screenshot, timeout=timeout,
-                                     threshold=threshold, offset_x=offset_x, offset_y=offset_y)
-        if result:
-            return result
-        # print(f"超时: 未找到图像 {template_path}")
+        start_time = time.time()
+        while time.time() - start_time - 0.1 < timeout:
+            screenshot = self.adb.screenshot()
+            result = self._get_image_pos(template=template, screenshot=screenshot, threshold=threshold,
+                                         offset_x=offset_x, offset_y=offset_y)
+            if result:
+                return result
+            time.sleep(0.2)
         return False
 
     def wait_and_click(self, template_path: str, timeout: int = 3,
@@ -127,17 +123,19 @@ class BearHunting:
         是否成功派兵的判定
         '''
         screenshot = self.adb.screenshot()
-        if (self._get_image_pos(template=self.troops['ratio'], screenshot=screenshot, timeout=0) and
-                self._get_image_pos(template=self.troops['buff'], screenshot=screenshot, timeout=0)):
+        if (self._get_image_pos(template=self.troops['ratio'], screenshot=screenshot) and
+                self._get_image_pos(template=self.troops['buff'], screenshot=screenshot)):
             self.adb.back()
             return False
         # 有编组退出两次
-        if self._get_image_pos(template=self.troops[1], screenshot=screenshot, timeout=0):
+        if self._get_image_pos(template=self.troops[1], screenshot=screenshot):
             self.adb.back()
             time.sleep(0.1)
             self.adb.back()
             return False
-        time_str = time.strftime("%H:%M:%S", time.localtime(time.time()))
+        timestamp = time.time()
+        time_str = time.strftime("%H:%M:%S", time.localtime(timestamp))
+        self.joined_time.update({target: timestamp})
         print(f'{time_str}:\t成功加入 {target} 的集结')
 
     def bear_joining(self, target: str, troop_id: int, target_y: int):
@@ -160,15 +158,15 @@ class BearHunting:
         '''
         screenshot = self.adb.screenshot()
         # 如果界面能选队伍，直接选好队伍出发
-        if self._get_image_pos(template=self.troops[1], screenshot=screenshot, timeout=0):
+        if self._get_image_pos(template=self.troops[1], screenshot=screenshot):
             self.troop_depart(target=target, troop_id=troop_id)
             return True
 
         # 如果界面有集结标识，有加入图标点击加入图标，没有退回上层并中断
-        if (self._get_image_pos(template=self.troops['ratio'], screenshot=screenshot, timeout=0) and
-                self._get_image_pos(template=self.troops['buff'], screenshot=screenshot, timeout=0)):
+        if (self._get_image_pos(template=self.troops['ratio'], screenshot=screenshot) and
+                self._get_image_pos(template=self.troops['buff'], screenshot=screenshot)):
             # 有加入图标，点击加入图标
-            if self._get_image_pos(template=self.troops[0], screenshot=screenshot, timeout=0):
+            if self._get_image_pos(template=self.troops[0], screenshot=screenshot):
                 self.adb.tap(900, 769)
                 time.sleep(0.2)
             # 没有加入图标，返回列表，退出函数
@@ -186,18 +184,13 @@ class BearHunting:
         这里逻辑可能有问题，因为派后后就进入了派兵函数(troop_depart)，派兵成功应该由派兵函数判定
         '''
         screenshot = self.adb.screenshot()
-        if (self._get_image_pos(template=self.troops['ratio'], screenshot=screenshot, timeout=0) and
-                self._get_image_pos(template=self.troops['buff'], screenshot=screenshot, timeout=0)):
+        if (self._get_image_pos(template=self.troops['ratio'], screenshot=screenshot) and
+                self._get_image_pos(template=self.troops['buff'], screenshot=screenshot)):
             self.adb.back()
             return False
-        if self._get_image_pos(template=self.troops[1], screenshot=screenshot, timeout=0):
+        if self._get_image_pos(template=self.troops[1], screenshot=screenshot):
             self.troop_depart(target=target, troop_id=troop_id)
             return True
-
-
-
-
-
 
     def bear_assemble(self):
         # pos = self.back_to_world()
@@ -261,7 +254,6 @@ class BearHunting:
             self.adb.back()
 
 
-
 def main():
     parser = argparse.ArgumentParser(description='Bear Hunting')
     parser.add_argument('deviceid', type=int, help='Mumu模拟器的编号')
@@ -277,7 +269,7 @@ def main():
     }
 
     assemble_interval = 350
-    hour = [21, 21, 20]
+    hour = [21, 21, 21]
 
     # 判断是否到达开始时间
     now = time.time()
@@ -289,7 +281,8 @@ def main():
     ))
     target = time.mktime(target_struct)
 
-    for i in range(1, 10):
+    target_counter = len(target_players[device_id])
+    for i in range(target_counter):
         path = f'templates/bear{device_id}/{i}.png'
         templates_path.update({i: path})
 
@@ -303,6 +296,7 @@ def main():
 
     run_reset = False
 
+    # 准备打熊
     while True:
         timestamp = time.time()
         if target - timestamp < 0:
@@ -317,11 +311,11 @@ def main():
                 continue
             # 前往熊坑
             automator.adb.tap(804, 1853)
-            time.sleep(1)
+            time.sleep(0.5)
             automator.adb.tap(284, 1201)
-            time.sleep(0.2)
+            time.sleep(0.5)
             automator.adb.tap(764, 178)
-            time.sleep(0.2)
+            time.sleep(0.5)
             automator.adb.tap(885, 538)
             run_reset = True
         elif target - timestamp < 60 * 5:
@@ -332,6 +326,7 @@ def main():
                 automator.adb.tap(pos[0], pos[1])
                 time.sleep(0.2)
                 automator.adb.tap(769, 1181)
+                time.sleep(0.2)
         elif target - timestamp < 60 * 15:
             print('请开宠物，换装备！请开宠物，换装备！请开宠物，换装备！')
             automator.enable_pet()
@@ -350,7 +345,7 @@ def main():
             assemble_time = automator.bear_assemble()
         elif int(new_time % 60) % 15 == 0:
             automator.adb.swipe(540, 1600, 540, 300, duration=300)
-            time.sleep(1)
+            time.sleep(0.2)
 
         anchors = automator.get_images_pos()
 
@@ -361,8 +356,12 @@ def main():
 
             # 序号为int，代表有刷到玩家，处理后马上中断当前轮回
             if isinstance(key, int):
-                name = target_players[device_id][key - 1]
-                troop_id = (key - 2) % 4
+                name = target_players[device_id][key]
+                last_joined = automator.joined_time.get(name, 0)
+                if new_time - last_joined <= 60 * 5:
+                    continue
+
+                troop_id = key % 4
                 y = value[1] + 171
                 automator.bear_joining(target=name, troop_id=troop_id, target_y=y)
                 break
