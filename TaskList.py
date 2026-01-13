@@ -80,6 +80,7 @@ class WinterLess:
             'mercenary1': False,
             'mercenary2': False
         }
+        self.coordinate = []
         self.automator = automator
 
     def back_to_world(self):
@@ -841,18 +842,13 @@ class WinterLess:
         return True
 
     def crystal_lab(self):
-        # 点出面板
-        self.back_to_world()
-        time.sleep(0.2)
-        self.automator.adb.tap(1, 900)
-        time.sleep(0.2)
-        # 点击城镇
-        self.automator.adb.tap(176, 404)
-        time.sleep(0.1)
-
-        # 点击矛兵营
-        self.automator.adb.tap(339, 948)
+        # TODO: 此处需要测试
         result = ''
+        pos = self.sidebar_searching('templates/Spearman_sidebar_anchor')
+        if pos:
+            self.automator.adb.tap(pos[0], pos[1])
+        else:
+            result = result + '未找到矛兵营。'
 
         if self.automator.wait_for_image('templates/crystal_lab.png', timeout=3):
             self.automator.adb.tap(797, 1434)
@@ -946,10 +942,12 @@ class WinterLess:
         self.automator.wait_and_click('templates/mark_star.png', offset_x=200, offset_y=53, timeout=1)
         self.automator.adb.tap(540, 960)
         # self.automator.adb.tap(500, 1160)
+        # TODO: 此处判定还不完善，可能被行军线路干扰
         if self.automator.wait_and_click('templates/demolish.png'):
             self.automator.wait_and_click('templates/OK_btn.png')
 
         # 处理附件队伍太多无法选中地面的问题
+        # TODO: 此处判定还不完善，可能被行军线路干扰
         keep_try = True
         i = 0
         while keep_try:
@@ -1078,7 +1076,7 @@ class WinterLess:
             self.automator.adb.tap(961, 362)
 
         result = result + f'收获了{len(coordinates)}个宝箱。'
-
+        # TODO: 需要处理体力不足的判定。
         senior = self.automator.get_images_pos('templates/pet_senior.png', threshold=0.95, timeout=1)
         medium = self.automator.get_images_pos('templates/pet_medium.png', threshold=0.95, timeout=0)
         final_list = senior + medium
@@ -1119,7 +1117,7 @@ class WinterLess:
         self.back_to_world()
         self.automator.wait_and_click('templates/frozen_treasure.png')
         if not self.automator.wait_for_image('templates/frozen_treasure_anchor.png', timeout=2):
-            self.automator.wait_and_click('templates/frozen_treasure_tab.png.png')
+            self.automator.wait_and_click('templates/frozen_treasure_tab.png')
         self.automator.adb.tap(752, 793)
         i = 0
         while self.automator.wait_and_click('templates/claim2.png', timeout=1, threshold=0.5):
@@ -1177,6 +1175,8 @@ class WinterLess:
 
             # 找出五位玩家中战力最小的
             players = text['players']
+            if len(players) != 5:
+                continue
             fight_index, fight_target = min(enumerate(players), key=lambda x: x[1]['combat_power_numeric'])
 
             # 如果战力差距过大，则刷新
