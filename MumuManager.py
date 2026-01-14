@@ -604,7 +604,7 @@ class MumuGameAutomator:
 
     # 同时查找一个图片的多个位置
     def get_images_pos(self, template_path: str, timeout: int = 10,
-                       threshold: float = 0.8, position_threshold=8):
+                       threshold: float = 0.8, position_threshold: int = 8):
         # print(f"等待图像: {template_path}")
         start_time = time.time()
         template = self.image_matcher.load_template(template_path)
