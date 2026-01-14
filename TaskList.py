@@ -1,8 +1,30 @@
 import re
 import time
+import functools
 from MumuManager import MumuGameAutomator
 from intelligence import IntelligenceDeal
 from typing import List, Dict
+
+
+def loop_timeout(timeout_seconds=300):
+    """装饰器：为函数中的循环添加超时检查"""
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            # 创建超时检查函数
+            start_time = time.time()
+
+            def should_break():
+                return time.time() - start_time > timeout_seconds
+
+            # 将should_break作为第一个额外参数插入到原函数参数列表中
+            # 对于实例方法，args[0]是self，args[1:]是原始参数
+            # 我们需要传递 (self, should_break, *original_args)
+            return func(*args[:1], should_break, *args[1:], **kwargs)
+
+        return wrapper
+
+    return decorator
 
 
 def format_arena(text: str):
@@ -83,7 +105,28 @@ class WinterLess:
         self.coordinate = []
         self.automator = automator
 
-    def back_to_world(self):
+    def back_to_my_town(self, update_coordinate: bool = False):
+        self.back_to_world()
+        self.automator.swipe_random(192, 1400, 300, 1600,
+                                    700, 600, 800, 900, duration=300)
+        time.sleep(1)
+        pos1 = self.automator.get_image_pos('templates/my_town.png')
+        if not pos1:
+            return False
+        self.automator.adb.tap(pos1[0], pos1[1])
+        pos2 = self.automator.get_image_pos('templates/my_town_anchor.png')
+        if not pos2:
+            return False
+        if update_coordinate:
+            self.automator.adb.tap(pos2[0], pos2[1])
+            self.automator.wait_for_image('templates/island_enter.png')
+            coordinate = self.automator.get_screen_text((257, 1220, 449, 1302), numbers=True)
+            self.back_to_world()
+            self.coordinate = coordinate
+        return True
+
+    @loop_timeout(timeout_seconds=900)
+    def back_to_world(self, timeout_check):
         world_icons = {
             0: 'templates/sidebar_close.png',
             1: 'templates/reconnect.png',
@@ -91,15 +134,23 @@ class WinterLess:
             3: 'templates/island_anchor.png',
             4: 'templates/world_search.png',
             5: 'templates/intelligence_btn.png',
-            6: 'templates/my_town.png'
+            6: 'templates/my_town.png',
+            7: 'templates/position_share.png'
         }
         current_time = time.time()
         while True:
+            if timeout_check():
+                break
             games_status = self.automator.multiple_images_pos(world_icons)
 
             # 关闭左侧列表信息（因为会遮挡队列信息）
             if games_status[0] is not None:
                 self.automator.adb.tap(695, 818)
+                continue
+
+            # 如果存在位置分享图标，则点击返回
+            if games_status[7] is not None:
+                self.automator.adb.back()
                 continue
 
             if games_status[4] is not None and games_status[5] is not None:
@@ -155,8 +206,8 @@ class WinterLess:
         redpack = 'templates/redpack1.png'
         if self.automator.wait_for_image(redpack, timeout=0):
             self.automator.adb.tap(523, 1705)
+            i = 0
             if self.automator.wait_and_click('templates/redpack2.png', timeout=1):
-                i = 0
                 while self.automator.wait_and_click('templates/redpack3.png'):
                     self.automator.adb.tap(930, 347)
                     i = i + 1
@@ -168,14 +219,13 @@ class WinterLess:
         result = result + '或许互助有收益。'
         return result
 
-    def sidebar_searching(self, path: str, timeout: int = 3, threshold: float = 0.8):
+    @loop_timeout(timeout_seconds=300)
+    def sidebar_searching(self, should_break, path: str, timeout: int = 3, threshold: float = 0.8):
         self.back_to_world()
         # 点出面板
-        i = 0
         while not self.automator.wait_for_image('templates/sidebar_anchor1.png', timeout=1):
-            i = i + 1
             self.automator.adb.tap(6, 895, random_range=1)
-            if i > 5:
+            if should_break():
                 return "点不出面板"
         self.automator.adb.tap(6, 895, random_range=1)
         time.sleep(0.2)
@@ -183,7 +233,7 @@ class WinterLess:
         self.automator.adb.tap(176, 404)
         time.sleep(0.1)
         rolling = True
-        i = 0
+
         while rolling:
             pos = self.automator.get_image_pos(path, timeout=timeout, threshold=threshold)
             if pos:
@@ -192,9 +242,8 @@ class WinterLess:
                 rolling = False
             self.automator.adb.swipe(337, 900, 337, 490)
             time.sleep(1)
-            i = i + 1
-            if i > 10:
-                return None
+            if should_break():
+                return False
 
     def warehouse_reward(self):
         # 点出面板
@@ -224,15 +273,11 @@ class WinterLess:
         self.back_to_world()
         return result
 
-    # 总是不会退出，待调试
     def adventure_gains(self):
         self.back_to_world()
         self.automator.wait_and_click("templates/adventure.png", timeout=2)
         self.automator.wait_and_click("templates/adventure_treasure.png", timeout=1)
-        if self.automator.wait_and_click("templates/adventure_gain2.png", timeout=3):
-            time.sleep(0.2)
-            self.automator.tap_random_area(450, 1007, 636, 1175)
-        time.sleep(0.2)
+        self.automator.wait_and_click("templates/adventure_gain2.png", timeout=3)
         self.back_to_world()
         return '执行领取探险收益。'
 
@@ -295,7 +340,8 @@ class WinterLess:
         self.back_to_world()
         return result
 
-    def monster_hunt(self):
+    @loop_timeout(timeout_seconds=300)
+    def monster_hunt(self, should_break):
         result = ''
 
         self.back_to_world()
@@ -306,7 +352,6 @@ class WinterLess:
 
         # (200, 281, 364, 351)为行军信息区域，尽量保持队伍信息区域干净，否则影响效果
         # 确认是否有队列
-        i = 0
         while True:
             value = self.automator.get_screen_text((200, 281, 364, 351), preprocess=False,
                                                    numbers=True, with_qwen3=True)
@@ -319,8 +364,7 @@ class WinterLess:
                     return result
             else:
                 self.back_to_world()
-                i = i + 1
-                if i > 5:
+                if should_break():
                     result = result + '获取队伍信息失败。'
                     return result
 
@@ -658,7 +702,8 @@ class WinterLess:
         self.back_to_world()
         return result
 
-    def daily_commander_reward(self):
+    @loop_timeout(timeout_seconds=300)
+    def daily_commander_reward(self, should_break):
         self.back_to_world()
         result = ''
         # 点进统帅
@@ -678,6 +723,8 @@ class WinterLess:
         i = 0
         while self.automator.wait_and_click('templates/commander_use.png', timeout=1):
             i = i + 1
+            if should_break():
+                break
         if i > 0:
             result = f'使用了 {i}次统帅经验。'
         self.back_to_world()
@@ -685,18 +732,8 @@ class WinterLess:
 
     # 晨曦岛操作
     def island_gain(self):
-        self.back_to_world()
-        result = '没有获得任何收益。下次好运。'
-        self.automator.swipe_random(192, 1400, 300, 1600,
-                                    700, 600, 800, 900, duration=300)
-        time.sleep(1)
-        pos1 = self.automator.get_image_pos('templates/my_town.png')
-        if pos1:
-            self.automator.adb.tap(pos1[0], pos1[1])
-        else:
-            result = '找不到城镇，跳过很执行'
-            return result
-
+        result = ''
+        self.back_to_my_town()
         # 拜访邻居
         pos2 = self.automator.get_image_pos('templates/island_visit.png')
         if pos2:
@@ -752,7 +789,8 @@ class WinterLess:
         self.back_to_world()
         return result
 
-    def store_purchase(self):
+    @loop_timeout(timeout_seconds=300)
+    def store_purchase(self, should_break):
         self.back_to_world()
         purchase_paths = {
             1: 'templates/store_meal.png',
@@ -777,6 +815,8 @@ class WinterLess:
 
         # self.automator.adb.tap(998, 813)
         while True:
+            if should_break():
+                break
             # 截图查找是否有资源标志
             purchase_list = self.automator.multiple_images_pos(purchase_paths)
 
@@ -801,7 +841,8 @@ class WinterLess:
         self.back_to_world()
         return result
 
-    def event_locate(self, path: str, event_type: int = 1):
+    @loop_timeout(timeout_seconds=300)
+    def event_locate(self, should_break, path: str, event_type: int = 1):
         event_list = {
             1: 'templates/events.png',
             2: 'templates/best_deal.png'
@@ -826,25 +867,21 @@ class WinterLess:
         # 先划到最左
         pos = move_directions[event_type]
         x1, y1, x2, y2 = pos
-        i = 0
         while not self.automator.wait_for_image(anchor_list1[event_type], timeout=0):
             self.automator.adb.swipe(x1, y1, x2, y2)
-            i = i + 1
-            if i > 8:
+            if should_break:
                 return False
-        i = 0
         while not self.automator.wait_and_click(path, timeout=1):
             self.automator.adb.swipe(x2 - 169, y2, x1, y1)
             time.sleep(0.5)
-            i = i + 1
-            if self.automator.wait_for_image(anchor_list2[event_type], timeout=0) or i > 8:
+            if self.automator.wait_for_image(anchor_list2[event_type], timeout=0) or should_break():
                 return False
         return True
 
     def crystal_lab(self):
         # TODO: 此处需要测试
         result = ''
-        pos = self.sidebar_searching('templates/Spearman_sidebar_anchor')
+        pos = self.sidebar_searching('templates/Spearman_sidebar_anchor.png')
         if pos:
             self.automator.adb.tap(pos[0], pos[1])
         else:
@@ -864,7 +901,8 @@ class WinterLess:
         self.back_to_world()
         return result
 
-    def alliance_treasure(self):
+    @loop_timeout(timeout_seconds=300)
+    def alliance_treasure(self, should_break):
         self.back_to_world()
         result = ''
         self.automator.wait_and_click('templates/alliance.png')
@@ -875,6 +913,8 @@ class WinterLess:
             while self.automator.wait_for_image('templates/claim1.png', timeout=1):
                 self.automator.wait_and_click('templates/claim1.png', timeout=1)
                 i = i + 1
+                if should_break():
+                    break
             result = result + f'获得{i}个盟友赠礼。'
         else:
             result = result + '一次获得至少12个盟友赠礼。'
@@ -900,7 +940,8 @@ class WinterLess:
             time.sleep(1)
         self.back_to_world()
 
-    def daily_charge_reward(self):
+    @loop_timeout(timeout_seconds=300)
+    def daily_charge_reward(self, should_break):
         self.back_to_world()
         self.automator.adb.tap(908, 99)
         self.automator.wait_and_click('templates/gift_box1.png', threshold=0.5, timeout=5)
@@ -910,6 +951,8 @@ class WinterLess:
             self.automator.wait_and_click('templates/gift_box1.png', threshold=0.5)
             self.automator.wait_and_click('templates/gift_box2.png', timeout=0, threshold=0.5)
             i = i + 1
+            if should_break():
+                break
         result = f'收获了{i}个礼物'
         self.back_to_world()
         return result
@@ -926,7 +969,8 @@ class WinterLess:
         self.back_to_world()
         return result
 
-    def set_alliance_mine(self):
+    @loop_timeout(timeout_seconds=300)
+    def set_alliance_mine(self, should_break):
         if self.automator.adb.device_name != '蛮僮人':
             return "角色不可用"
 
@@ -949,12 +993,10 @@ class WinterLess:
         # 处理附件队伍太多无法选中地面的问题
         # TODO: 此处判定还不完善，可能被行军线路干扰
         keep_try = True
-        i = 0
         while keep_try:
-            self.automator.adb.tap(540, 960)
-            i = i + 1
-            if i > 30:
+            if should_break():
                 return "盟矿放置失败。"
+            self.automator.adb.tap(540, 960)
             self.automator.wait_and_click('templates/select_ground.png', timeout=1)
             if self.automator.wait_and_click('templates/build.png'):
                 keep_try = False
@@ -985,7 +1027,8 @@ class WinterLess:
 
         return wait_time
 
-    def monster_hunter(self, target_type: int = 0, stop_value: int = 180):
+    @loop_timeout(timeout_seconds=600)
+    def monster_hunter(self, should_break, target_type: int = 0, stop_value: int = 180):
         result = ''
         target = {
             0: ['behemoth', 'group7', 'march_monster'],
@@ -997,7 +1040,8 @@ class WinterLess:
         strength = 0
         try:
             while True:
-
+                if should_break():
+                    break
                 # 检测体力
                 self.back_to_world()
                 now_time = time.time()
@@ -1113,7 +1157,8 @@ class WinterLess:
             self.automator.adb.tap(713, 1854)
         self.back_to_world()
 
-    def frozen_treasure(self):
+    @loop_timeout(timeout_seconds=60)
+    def frozen_treasure(self, should_break):
         self.back_to_world()
         self.automator.wait_and_click('templates/frozen_treasure.png')
         if not self.automator.wait_for_image('templates/frozen_treasure_anchor.png', timeout=2):
@@ -1121,18 +1166,18 @@ class WinterLess:
         self.automator.adb.tap(752, 793)
         i = 0
         while self.automator.wait_and_click('templates/claim2.png', timeout=1, threshold=0.5):
+            if should_break():
+                break
             time.sleep(0.1)
             i = i + 1
-            if i > 5:
-                break
 
         self.automator.adb.tap(319, 793)
         j = 0
         while self.automator.wait_and_click('templates/claim2.png', timeout=1, threshold=0.5):
+            if should_break():
+                break
             time.sleep(0.1)
             j = j + 1
-            if j > 5:
-                break
         if i > 0 or j > 0:
             result = f'成功领取{i}个每日任务和{j}个进度奖励。'
         else:
@@ -1140,7 +1185,8 @@ class WinterLess:
         self.back_to_world()
         return result
 
-    def arena_fight(self):
+    @loop_timeout(timeout_seconds=900)
+    def arena_fight(self, should_break):
         timestamp = time.time()
         result = ''
         battle_x = 937
@@ -1164,6 +1210,8 @@ class WinterLess:
         i = 0
         fight_info = ''
         while time_left > 0:
+            if should_break():
+                break
             text = self.automator.get_screen_text(with_qwen3=True)
             text = format_arena(text)
             my_power = text.get('my_power_numeric', 0)
@@ -1206,7 +1254,8 @@ class WinterLess:
         self.back_to_world()
         return result
 
-    def crystal_deep(self):
+    @loop_timeout(timeout_seconds=60)
+    def crystal_deep(self, should_break):
         result = ''
         pos = self.sidebar_searching('templates/Shield_sidebar_anchor.png')
         if not pos:
@@ -1218,9 +1267,9 @@ class WinterLess:
         if self.automator.wait_and_click('templates/crystal_deep.png', timeout=2):
             i = 0
             while self.automator.wait_and_click('templates/claim1.png', threshold=0.5, timeout=1):
-                i = i + 1
-                if i > 5:
+                if should_break():
                     break
+                i = i + 1
             x = [328, 543, 757, 971]
             for x_pos in x:
                 self.automator.adb.tap(x_pos, 753)
