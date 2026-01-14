@@ -1,6 +1,28 @@
 import argparse
 import time
+import functools
 from MumuManager import MumuGameAutomator
+
+
+def loop_timeout(timeout_seconds=300):
+    """装饰器：为函数中的循环添加超时检查"""
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            # 创建超时检查函数
+            start_time = time.time()
+
+            def should_break():
+                return time.time() - start_time > timeout_seconds
+
+            # 将should_break作为第一个额外参数插入到原函数参数列表中
+            # 对于实例方法，args[0]是self，args[1:]是原始参数
+            # 我们需要传递 (self, should_break, *original_args)
+            return func(*args[:1], should_break, *args[1:], **kwargs)
+
+        return wrapper
+
+    return decorator
 
 
 class IntelligenceDeal:
@@ -23,9 +45,9 @@ class IntelligenceDeal:
             4: 0
         }
 
-    def deal_intelligence(self, strength: int, x: int, y: int, i_type: int = 1):
+    def deal_intelligence(self, strength: int, x: int, y: int, i_type: int = 1, wait_time: float = 0):
 
-        wait_time = 0
+        wait_time = wait_time
         strength = strength
 
         # 点击图标
@@ -64,11 +86,12 @@ class IntelligenceDeal:
                 pos = self.automator.get_image_pos('templates/queue_beast.png', timeout=1)
                 if pos:
                     x, y = pos
+                    current_time = time.time()
                     time_left = self.automator.get_screen_text((100, y + 10, 300, y + 45),
                                                                preprocess=False, numbers=True, with_qwen3=True)
                     print('time_left is:', time_left)
                     wait_h, wait_m, wait_s = time_left
-                    wait_time = (wait_m * 60 + wait_s) * 2 + 5
+                    wait_time = current_time + (wait_m * 60 + wait_s) * 2 + 5
             else:
                 self.automator.adb.back()
         elif i_type == 2:
@@ -88,7 +111,8 @@ class IntelligenceDeal:
 
         return strength, wait_time
 
-    def process_intelligence(self):
+    @loop_timeout(timeout_seconds=1800)
+    def process_intelligence(self, should_break):
         self.automator.wait_and_click('templates/intelligence_btn.png', threshold=0.99)
 
         strength = self.automator.get_screen_text((900, 30, 1000, 90), preprocess=False,
@@ -99,15 +123,20 @@ class IntelligenceDeal:
         else:
             strength = 8
 
+        if strength >= 160:
+            self.automator.wait_and_click('templates/expert_agnes.png')
+
         terminate = False
-        current_time = time.time()
         wait_time = 0
         while not terminate:
+            if should_break():
+                print('情报超时退出。')
+                break
             time.sleep(0.1)
             self.automator.wait_and_click('templates/intelligence_btn.png', threshold=0.92, timeout=1)
 
             positions = self.automator.multiple_images_pos(self.paths, threshold=0.8)
-            print( positions)
+            print(positions)
 
             i = 0
 
@@ -120,7 +149,7 @@ class IntelligenceDeal:
                     continue
 
                 print('start to deal')
-                if (key == 0 or key == 1) and time.time() - current_time < wait_time:
+                if (key == 0 or key == 1) and time.time() - wait_time < 0:
                     continue
                 # 点击查看图标
                 if key == 4:
@@ -131,8 +160,8 @@ class IntelligenceDeal:
                     time.sleep(2)
                     self.automator.tap_random_area(300, 800, 600, 1000)
                     continue
-                strength, wait_time = self.deal_intelligence(strength=strength, x=value[0], y=value[1], i_type=key)
-                current_time = time.time()
+                strength, wait_time = self.deal_intelligence(strength=strength,
+                                                             x=value[0], y=value[1], i_type=key, wait_time=wait_time)
 
                 self.automator.wait_and_click('templates/intelligence_btn.png', threshold=0.92, timeout=1)
 
