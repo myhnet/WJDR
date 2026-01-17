@@ -3,7 +3,7 @@ import time
 import functools
 from MumuManager import MumuGameAutomator
 from intelligence import IntelligenceDeal
-from typing import List, Dict
+from typing import List, Dict, Tuple
 
 
 def loop_timeout(timeout_seconds=300):
@@ -109,7 +109,6 @@ class WinterLess:
         self.back_to_world()
         self.automator.swipe_random(192, 1400, 300, 1600,
                                     700, 600, 800, 900, duration=300)
-        time.sleep(1)
         pos1 = self.automator.get_image_pos('templates/my_town.png')
         if not pos1:
             return False
@@ -124,6 +123,12 @@ class WinterLess:
             self.back_to_world()
             self.coordinate = coordinate
         return True
+
+    def update_coordinate(self):
+        if self.back_to_my_town(update_coordinate=True):
+            return 'update coordinate success'
+        else:
+            return 'update coordinate failed'
 
     @loop_timeout(timeout_seconds=900)
     def back_to_world(self, timeout_check):
@@ -146,12 +151,12 @@ class WinterLess:
             # 关闭左侧列表信息（因为会遮挡队列信息）
             if games_status[0] is not None:
                 self.automator.adb.tap(695, 818)
-                continue
+                return True
 
             # 如果存在位置分享图标，则点击返回
             if games_status[7] is not None:
                 self.automator.adb.back()
-                continue
+                return True
 
             if games_status[4] is not None and games_status[5] is not None:
                 return True
@@ -188,6 +193,7 @@ class WinterLess:
                 time.sleep(0.5)
                 continue
             self.automator.adb.back()
+            time.sleep(0.1)
 
     def alliance_donating(self):
         result = ''
@@ -201,22 +207,108 @@ class WinterLess:
         return result
 
     def world_help(self):
-        # 首先处理红包
+        start_time = time.time()
         result = ''
-        redpack = 'templates/redpack1.png'
-        if self.automator.wait_for_image(redpack, timeout=0):
-            self.automator.adb.tap(523, 1705)
-            i = 0
-            if self.automator.wait_and_click('templates/redpack2.png', timeout=1):
-                while self.automator.wait_and_click('templates/redpack3.png'):
-                    self.automator.adb.tap(930, 347)
-                    i = i + 1
-            result = result + f'应该领取了{i}个红包！'
-            self.back_to_world()
-        timestamp = time.time()
-        while time.time() - timestamp < 0.5:
+        world_icons = {
+            0: 'templates/attacked.png',
+            1: 'templates/redpack1.png',
+            2: 'templates/soldier_cure.png'
+        }
+        games_status = self.automator.multiple_images_pos(world_icons)
+        for key, value in games_status.items():
+            if value is None:
+                continue
+            x, y = value
+            if key == 0:
+                result = self.under_attack(x, y)
+                return result
+            elif key == 1:
+                result = self.claim_redpack()
+            elif key == 2:
+                self.automator.adb.tap(x, y)
+                pos = self.automator.get_image_pos('templates/soldier_cure_btn.png')
+                if pos:
+                    self.automator.adb.tap(pos[0], pos[1])
+                    time.sleep(0.1)
+                    self.automator.adb.tap(pos[0], pos[1])
+            elif key == 3:
+                print('join assemble.')
+            break
+
+        # 点击联盟互助
+        while time.time() - start_time < 1.9:
             self.automator.adb.tap(790, 1645)
-        result = result + '或许互助有收益。'
+        return result
+
+    def under_attack(self, x, y):
+        # 点进进入军情
+        result = ''
+        war_analyze = {
+            0: 'templates/war_assembl_attacking.png',
+            1: 'templates/war_assembled.png',
+            2: 'templates/war_marching.png',
+            3: 'templates/war_scout.png'
+        }
+        self.automator.adb.tap(x, y, random_range=1)
+        attacking_troops = self.automator.get_images_pos(template_path='templates/war_target.png',
+                                                         position_threshold=15)
+        if len(attacking_troops) >= 3:
+            print('enable shield')
+        war_types = self.automator.multiple_images_pos(war_analyze)
+        for key, value in war_types.items():
+            if value is None:
+                continue
+
+            x, y = value
+            time_left = self.get_seconds(region=(x + 100, y + 10, x + 800, y + 50))
+
+            if key == 0 or key == 2:
+                coordinate = self.automator.get_screen_text((800, y - 22, 1200, y + 22), numbers=True)
+                if coordinate == self.coordinate and time_left < 15:
+                    self.enable_shield()
+                break
+            if key == 1:
+                print('marching', value)
+                coordinate = self.automator.get_screen_text((800, y - 22, 1200, y + 22), numbers=True)
+                if coordinate == self.coordinate:
+                    print('downtown under attached')
+                self.back_to_world()
+            if key == 3:
+                print('scout, seconds left:', time_left)
+                self.back_to_world()
+        return result
+
+    def enable_shield(self, shield_type: int = 0):
+        # TODO: 目前只能处理免费的盾牌
+        types = [600, 822, 1044, 1266, 1488]
+        self.back_to_world()
+        self.automator.wait_and_click('templates/enable_buffs.png')
+        self.automator.adb.tap(280, 174)
+        self.automator.wait_and_click('templates/buff_shield.png')
+        poses = self.automator.get_images_pos('templates/test.png')
+        if self.automator.wait_for_image('templates/buff_shield_btn.png'):
+            i = shield_type
+            self.automator.adb.tap(885, types[i])
+            if i > 0:
+                self.automator.wait_and_click('templates/buff_with_diamond.png')
+                self.automator.adb.tap(500, 1183)
+
+        self.back_to_world()
+
+    def claim_redpack(self):
+        result = ''
+        i = 0
+        '''
+        TODO: 
+        目前红包需要聊天保留在盟聊，暂不支持切换世界/联盟领取红包
+        '''
+        self.automator.adb.tap(523, 1705)
+        if self.automator.wait_and_click('templates/redpack2.png', timeout=1):
+            while self.automator.wait_and_click('templates/redpack3.png'):
+                self.automator.adb.tap(930, 347)
+                i = i + 1
+        result = result + f'应该领取了{i}个红包！'
+        self.back_to_world()
         return result
 
     @loop_timeout(timeout_seconds=300)
@@ -340,10 +432,9 @@ class WinterLess:
         self.back_to_world()
         return result
 
-    @loop_timeout(timeout_seconds=300)
+    @loop_timeout(timeout_seconds=900)
     def monster_hunt(self, should_break):
         result = ''
-
         self.back_to_world()
         time.sleep(0.1)
         if not self.automator.wait_for_image('templates/assemble.png', timeout=1):
@@ -364,6 +455,9 @@ class WinterLess:
                     return result
             else:
                 self.back_to_world()
+                # 随机滑动，解决行军信息遮挡/干扰
+                self.automator.swipe_random(400, 600, 410, 610,
+                                            500, 700, 710, 710)
                 if should_break():
                     result = result + '获取队伍信息失败。'
                     return result
@@ -389,6 +483,8 @@ class WinterLess:
                 self.automator.adb.tap(828, 1821)
                 result = result + f'成功参与了集结{key}。'
 
+        if result == '':
+            result = result + '没有期待的目标。'
         self.back_to_world()
         return result
 
@@ -534,13 +630,10 @@ class WinterLess:
             common_exist = common_value is not None
             alliance_exist = alliance_value is not None
 
-            if common_exist and alliance_exist:
-                pass
-            elif common_exist:
+            if common_exist != alliance_exist:
                 working_mines.append(mining_name)
-            elif alliance_exist:
-                working_mines.append(mining_name)
-                have_alliance_mine = True
+                if alliance_exist:
+                    have_alliance_mine = True
 
         if have_alliance_mine and len(working_mines) == 4:
             result = '所有矿产都在正常开采, 跳过任务。'
@@ -571,10 +664,7 @@ class WinterLess:
                     self.automator.adb.tap(332, y)
                     self.automator.wait_and_click('templates/OK_btn.png', timeout=2)
                     time.sleep(0.2)
-                    wait_h, wait_m, wait_s = self.automator.get_screen_text((100, y - 10, 300, y + 45),
-                                                                            preprocess=False, numbers=True,
-                                                                            with_qwen3=True)
-                    wait_time = wait_m * 60 + wait_s - 2
+                    wait_time = self.get_seconds((100, y - 10, 300, y + 45))
                     time.sleep(wait_time)
                     working_mines.remove(temp_name)
                     pass
@@ -731,7 +821,8 @@ class WinterLess:
         return result
 
     # 晨曦岛操作
-    def island_gain(self):
+    @loop_timeout(timeout_seconds=300)
+    def island_gain(self, should_break):
         result = ''
         self.back_to_my_town()
         # 拜访邻居
@@ -766,24 +857,16 @@ class WinterLess:
             return result
         # 获取收益，大图标
         i = 0
-        for value in self.automator.get_images_pos('templates/island_reward1.png'):
-            self.automator.adb.tap(value[0], value[1])
+        while self.automator.wait_and_click('templates/island_reward1.png', timeout=1, scale_match=True):
+            if should_break():
+                break
             i = i + 1
-        if i == 0:
-            for value in self.automator.get_images_pos('templates/island_reward2.png', timeout=0):
-                self.automator.adb.tap(value[0], value[1])
-                i = i + 1
         if i > 0:
             result = result + '取得生命之树收益。'
 
         # 苹果收益
-        if self.automator.wait_and_click('templates/island_apple1.png', timeout=1):
-            self.automator.adb.tap(544, 1370)
-            self.automator.wait_and_click('templates/intelligence_gain2.png')
-            result = result + '取得苹果收益。'
-        elif self.automator.wait_and_click('templates/island_apple2.png', timeout=0):
-            self.automator.adb.tap(544, 1370)
-            self.automator.wait_and_click('templates/intelligence_gain2.png')
+        if self.automator.wait_and_click('templates/island_apple1.png', timeout=1, scale_match=True):
+            self.automator.wait_and_click('templates/claim1.png', scale_match=True)
             result = result + '取得苹果收益。'
 
         self.back_to_world()
@@ -881,6 +964,7 @@ class WinterLess:
     def crystal_lab(self):
         # TODO: 此处需要测试
         result = ''
+        print('开始执行 crystal_lab')
         pos = self.sidebar_searching('templates/Spearman_sidebar_anchor.png')
         if pos:
             self.automator.adb.tap(pos[0], pos[1])
@@ -984,10 +1068,16 @@ class WinterLess:
         self.back_to_world()
         self.automator.wait_and_click('templates/star_anchor.png')
         self.automator.wait_and_click('templates/mark_star.png', offset_x=200, offset_y=53, timeout=1)
-        self.automator.adb.tap(540, 960)
-        # self.automator.adb.tap(500, 1160)
-        # TODO: 此处判定还不完善，可能被行军线路干扰
-        if self.automator.wait_and_click('templates/demolish.png'):
+        self.automator.wait_for_image('templates/mine_alliance_anchor.png', timeout=1)
+        time_left = self.get_seconds((520, 850, 600, 890))
+        if time_left > 0:
+            if time_left >= 36000:
+                return "盟矿剩余时间超过10小时，放弃"
+
+            self.automator.adb.tap(540, 960)
+            while not self.automator.wait_and_click('templates/demolish.png', timeout=1):
+                if should_break():
+                    break
             self.automator.wait_and_click('templates/OK_btn.png')
 
         # 处理附件队伍太多无法选中地面的问题
@@ -1008,23 +1098,28 @@ class WinterLess:
         if self.automator.wait_and_click('templates/place.png'):
             return "盟矿放置成功。"
 
+    def get_seconds(self, region: Tuple[int, int, int, int] = None, preprocess: bool = True, with_qwen3: bool = True):
+        time_left = 0
+        try:
+            text = self.automator.get_screen_text(region, numbers=True, preprocess=preprocess, with_qwen3=with_qwen3)
+            h, m, s = text
+            time_left = h * 3600 + m * 60 + s
+        except ValueError:
+            pass
+        return time_left
+
     def calculate_wait_time(self, wait_type: int = 0, extra_seconds: int = 0):
         wait_path = {
             0: 'queue_monster',
             1: 'queue_beast'
         }
         wait_time = 0
-        try:
-            pos = self.automator.get_image_pos(f'templates/{wait_path[wait_type]}.png', timeout=1)
-            if pos:
-                x, y = pos
-                time_left = self.automator.get_screen_text((100, y + 10, 300, y + 45),
-                                                           preprocess=False, numbers=True, with_qwen3=True)
-                wait_h, wait_m, wait_s = time_left
-                wait_time = (wait_m * 60 + wait_s) * 2 + extra_seconds
-        finally:
-            pass
+        pos = self.automator.get_image_pos(f'templates/{wait_path[wait_type]}.png', timeout=1)
+        if pos:
+            x, y = pos
+            wait_time = self.get_seconds((100, y + 10, 300, y + 45), preprocess=False)
 
+        wait_time = wait_time * 2 + extra_seconds
         return wait_time
 
     @loop_timeout(timeout_seconds=600)
@@ -1078,15 +1173,14 @@ class WinterLess:
                     result = result + 'return 集结失败'
                     continue
                 self.automator.wait_and_click(f'templates/{icons[1]}.png', timeout=2)
-                self.automator.wait_and_click(f'templates/{icons[2]}.png', threshold=0.95, timeout=0)
+                self.automator.wait_and_click(f'templates/{icons[2]}.png', threshold=0.8, timeout=1)
                 i = i + 1
         except Exception as e:
             result = result + str(e)
 
-        finally:
-            result = result + f'已执行{i}次, 当前体力：{strength}'
-            self.back_to_world()
-            return result
+        result = result + f'已执行{i}次, 当前体力：{strength}'
+        self.back_to_world()
+        return result
 
     def deposit(self):
         self.event_locate('templates/bank.png', event_type=2)
@@ -1095,8 +1189,7 @@ class WinterLess:
             x, y = pos
             self.automator.adb.tap(x, y)
             self.automator.wait_and_click('templates/intelligence_gain2.png', timeout=5)
-            time.sleep(0.5)
-            self.automator.adb.tap(x, y)
+            time.sleep(2)
             self.automator.adb.tap(x, y)
             self.automator.adb.swipe(251, 1139, 600, 1139)
             self.automator.wait_and_click('templates/saving.png')
@@ -1245,10 +1338,7 @@ class WinterLess:
 
             # 返回挑战列表
             self.automator.adb.tap(500, 1890)
-
             i = i + 1
-            if i > 50:
-                break
         duration = int(time.time() - timestamp)//60
         result = result + f'共循环{i}次，用时：{duration}分钟。 战况： ' + fight_info
         self.back_to_world()
@@ -1266,7 +1356,7 @@ class WinterLess:
         self.automator.wait_for_image("templates/orders.png")
         if self.automator.wait_and_click('templates/crystal_deep.png', timeout=2):
             i = 0
-            while self.automator.wait_and_click('templates/claim1.png', threshold=0.5, timeout=1):
+            while self.automator.wait_and_click('templates/claim1.png', threshold=0.7, timeout=1):
                 if should_break():
                     break
                 i = i + 1
