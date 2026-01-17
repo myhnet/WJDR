@@ -144,22 +144,48 @@ class Task:
         minute, hour, day, month, weekday = parts
 
         def parse_field(field: str, min_val: int, max_val: int) -> List[int]:
-            """解析cron字段"""
+            """解析cron字段
+            
+            支持的格式：
+            - *: 所有值
+            - 5: 单个值
+            - 1-5: 范围
+            - */5: 从最小值开始，每5步一次
+            - 1/2: 从1开始，每2步一次（新增）
+            - 1-10/2: 在1-10范围内，每2步一次（新增）
+            """
             if field == "*":
                 return list(range(min_val, max_val + 1))
 
             result = []
             for part in field.split(","):
                 if "/" in part:
-                    # 步长 */5
-                    step_part = part.split("/")
-                    step = int(step_part[1])
-                    result.extend(range(min_val, max_val + 1, step))
+                    # 步长语法：起始/步长 或 范围/步长
+                    left, step_str = part.split("/", 1)
+                    step = int(step_str)
+                    
+                    if left == "*":
+                        # */5 - 从最小值开始
+                        start = min_val
+                        end = max_val
+                    elif "-" in left:
+                        # 1-10/2 - 范围内步长
+                        range_start, range_end = map(int, left.split("-", 1))
+                        start = range_start
+                        end = range_end
+                    else:
+                        # 1/2 - 从指定值开始
+                        start = int(left)
+                        end = max_val
+                    
+                    # 生成步长序列
+                    result.extend(range(start, end + 1, step))
                 elif "-" in part:
                     # 范围 1-5
-                    start, end = map(int, part.split("-"))
+                    start, end = map(int, part.split("-", 1))
                     result.extend(range(start, end + 1))
                 else:
+                    # 单个值
                     result.append(int(part))
 
             return [v for v in result if min_val <= v <= max_val]
