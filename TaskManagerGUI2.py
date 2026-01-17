@@ -10,20 +10,24 @@ from tkinter import ttk, messagebox, scrolledtext, filedialog
 
 from MumuManager import MumuGameAutomator, ADBController
 from TaskList import WinterLess
-# 导入任务管理器
 from TaskQueueManager import GameTaskManager, ScheduleType
 
 
 class TaskManagerGUI(tk.Tk):
     """优化版任务管理器图形界面"""
+
     def __init__(self):
         super().__init__()
+
+        # 动态创建任务函数
+        self._create_task_methods()
 
         self.mmm_path = ''
 
         # 构建主框架
         self.title('无尽解脱器')
         self.geometry("1000x700")
+        self.colors = {}
 
         main_frame = ttk.Frame(self)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
@@ -84,207 +88,10 @@ class TaskManagerGUI(tk.Tk):
 
         self.task_ids = {}  # 存储功能名称到任务ID的映射
 
-        self.task_definitions = {
-            "城镇内": {
-                "练兵": {
-                    "func": self.soldier_training,
-                    "schedule_type": ScheduleType.INTERVAL,
-                    "interval_seconds": 1800,  # 30分钟
-                    "immediate": True,
-                    "requires_game": True
-                },
-                "仓库收益": {
-                    "func": self.warehouse_reward,
-                    "schedule_type": ScheduleType.CRON,
-                    "cron_expression": "27 * * * *",
-                    "requires_game": True
-                },
-                "探险收益": {
-                    "func": self.adventure_gain,
-                    "schedule_type": ScheduleType.CRON,
-                    "cron_expression": "40 */8 * * *",
-                    "requires_game": True
-                },
-                "宠物寻宝": {
-                    "func": self.pet_treasure,
-                    "schedule_type": ScheduleType.CRON,
-                    "cron_expression": "45 1,7,15,23 * * *",
-                    "requires_game": True
-                },
-                "火晶实验": {
-                    "func": self.crystal_lab,
-                    "schedule_type": ScheduleType.CRON,
-                    "cron_expression": "30 3 * * *",
-                    "immediate": False,
-                    "requires_game": True
-                },
-                "银行日存": {
-                    "func": self.bank_deposit,
-                    "schedule_type": ScheduleType.CRON,
-                    "cron_expression": "30 23 * * *",
-                    "requires_game": True
-                },
-                "每日奖励": {
-                    "func": self.daily_charge_reward,
-                    "schedule_type": ScheduleType.CRON,
-                    "cron_expression": "39 3 * * *",
-                    "immediate": False,
-                    "requires_game": True
-                },
-                "地心探险": {
-                    "func": self.earth_core,
-                    "schedule_type": ScheduleType.CRON,
-                    "cron_expression": "41 3 * * *",
-                    "immediate": False,
-                    "requires_game": True
-                },
-                "忠诚军牌": {
-                    "func": self.romulus_reward,
-                    "schedule_type": ScheduleType.CRON,
-                    "cron_expression": "30 11 * * *",
-                    "requires_game": True
-                },
-                "火晶深度探秘": {
-                    "func": self.crystal_deep,
-                    "schedule_type": ScheduleType.CRON,
-                    "cron_expression": "47 21 * * *",
-                    "requires_game": True
-                },
-                "竞技场": {
-                    "func": self.arena_fight,
-                    "schedule_type": ScheduleType.CRON,
-                    "cron_expression": "45 22 * * *",
-                    "requires_game": True
-                },
-                "领取体力": {
-                    "func": self.strength_cans,
-                    "schedule_type": ScheduleType.CRON,
-                    "cron_expression": "45 11,18 * * *",
-                    "immediate": False,
-                    "requires_game": True
-                },
+        # 从JSON文件加载任务定义并立即转换格式
+        raw_task_definitions = self.load_task_definitions_from_json()
+        self.task_definitions = self._convert_task_definitions(raw_task_definitions)
 
-            },
-            "野外": {
-                "统帅领取": {
-                    "func": self.daily_commander_reward,
-                    "schedule_type": ScheduleType.CRON,
-                    "cron_expression": "37 3 * * *",
-                    "immediate": False,
-                    "requires_game": True
-                },
-                "游荡商人": {
-                    "func": self.store_purchase,
-                    "schedule_type": ScheduleType.CRON,
-                    "cron_expression": "43 3 * * *",
-                    "requires_game": True
-                },
-                "免费招募": {
-                    "func": self.hero_recruit,
-                    "schedule_type": ScheduleType.CRON,
-                    "cron_expression": "3 * * * *",
-                    "requires_game": True
-                },
-                "采集": {
-                    "func": self.mining,
-                    "schedule_type": ScheduleType.INTERVAL,
-                    "interval_seconds": 590,
-                    "immediate": True,
-                    "requires_game": True
-                },
-                "自动上车": {
-                    "func": self.monster_hunt,
-                    "schedule_type": ScheduleType.INTERVAL,
-                    "interval_seconds": 30,
-                    "requires_game": True
-                },
-                "自动打巨兽": {
-                    "func": self.monster_hunter,
-                    "schedule_type": ScheduleType.CRON,
-                    "cron_expression": "13 * * * *",
-                    "requires_game": True
-                },
-                "游历补给": {
-                    "func": self.travel_gains,
-                    "schedule_type": ScheduleType.CRON,
-                    "cron_expression": "30 8,9,16,17 * * *",
-                    "requires_game": True
-                },
-                "任务奖励": {
-                    "func": self.daily_task_reward,
-                    "schedule_type": ScheduleType.CRON,
-                    "cron_expression": "7 * * * *",
-                    "requires_game": True
-                },
-                "情报处理": {
-                    "func": self.intelligence,
-                    "schedule_type": ScheduleType.CRON,
-                    "cron_expression": "15 0,1,8,9,16,17 * * *",
-                    "requires_game": True
-                }
-            },
-            "联盟任务": {
-                "联盟捐献": {
-                    "func": self.alliance_donating,
-                    "schedule_type": ScheduleType.CRON,
-                    "cron_expression": "5 */2 * * *",
-                    "requires_game": True
-                },
-                "联盟宝箱": {
-                    "func": self.alliance_treasure,
-                    "schedule_type": ScheduleType.CRON,
-                    "cron_expression": "45 */2 * * *",
-                    "requires_game": True
-                },
-                "红包与互助": {
-                    "func": self.performance_analysis_task,
-                    "schedule_type": ScheduleType.INTERVAL,
-                    "interval_seconds": 5,
-                    "requires_game": True
-                }
-            },
-            "其他": {
-                "晨曦岛": {
-                    "func": self.island_gain,
-                    "schedule_type": ScheduleType.CRON,
-                    "cron_expression": "59 */2 * * *",
-                    "requires_game": True
-                },
-                "更新上车记录": {
-                    "func": self.check_hunter_status,
-                    "schedule_type": ScheduleType.CRON,
-                    "cron_expression": "1 * * * *",
-                    "immediate": True,
-                    "requires_game": True
-                },
-                "更新盟矿": {
-                    "func": self.set_alliance_mine,
-                    "schedule_type": ScheduleType.CRON,
-                    "cron_expression": "40 7,19 * * *",
-                    "requires_game": True
-                },
-                "阅读邮件": {
-                    "func": self.read_mails,
-                    "schedule_type": ScheduleType.CRON,
-                    "cron_expression": "3 */3 * * *",
-                    "requires_game": True
-                }
-            },
-            "阶段性任务": {
-                "总动员刷任务": {
-                    "func": self.alliance_mobilization,
-                    "schedule_type": ScheduleType.INTERVAL,
-                    "interval_seconds": 150,  # 30分钟
-                    "requires_game": True
-                },
-                "冰封的宝藏": {
-                    "func": self.frozen_treasure,
-                    "schedule_type": ScheduleType.CRON,
-                    "cron_expression": "13 */2 * * *",
-                    "requires_game": True
-                }
-            }
-        }
         self.function_groups = {}
         for group_name, functions in self.task_definitions.items():
             self.function_groups[group_name] = list(functions.keys())
@@ -313,7 +120,6 @@ class TaskManagerGUI(tk.Tk):
         try:
             # 加载配置文件
             config_file = self.sys_config
-            config_data = {}
             if not os.path.exists(config_file):
                 return False
             with open(config_file, 'r', encoding='utf-8') as f:
@@ -465,7 +271,7 @@ class TaskManagerGUI(tk.Tk):
                 font=("Arial", 9)
             )
             stats_labels[key].grid(
-                row=0, column=i * 2 + 1, sticky=tk.W, padx=(0, 10), pady=2
+                row=0, column=j + 1, sticky=tk.W, padx=(0, 10), pady=2
             )
         self.tab_controls[tab_name]['stats_labels'] = stats_labels
 
@@ -482,15 +288,15 @@ class TaskManagerGUI(tk.Tk):
         tasks_toolbar.pack(fill=tk.X, padx=5, pady=(5, 2))
 
         self.create_group(tasks_toolbar, tab_name, "城镇内", self.function_groups["城镇内"],
-                           column=0, row=0, columns=2)
+                          column=0, row=0, columns=2)
         self.create_group(tasks_toolbar, tab_name, "野外", self.function_groups["野外"],
-                           column=1, row=0, columns=2)
+                          column=1, row=0, columns=2)
         self.create_group(tasks_toolbar, tab_name, "联盟任务", self.function_groups["联盟任务"],
-                           column=0, row=1, columns=2)
+                          column=0, row=1, columns=2)
         self.create_group(tasks_toolbar, tab_name, "其他", self.function_groups["其他"],
-                           column=1, row=1, columns=2)
+                          column=1, row=1, columns=2)
         self.create_group(tasks_toolbar, tab_name, "阶段性任务", self.function_groups["阶段性任务"],
-                           column=2, row=1, columns=2)
+                          column=2, row=1, columns=2)
 
         # 详情标签页
         details_tab = ttk.Frame(notebook)
@@ -703,21 +509,12 @@ class TaskManagerGUI(tk.Tk):
                 if key in stats:
                     label.config(text=str(stats[key]))
 
-        except Exception as e:
+        except Exception:
             pass  # 静默处理
-
-    def get_task_status(self, task_info):
-        """获取任务状态"""
-        task_manager = self.task_manager
-        if task_manager.running_task and task_manager.running_task.task_id == task_info["task_id"]:
-            return "运行中", self.colors["running"]
-        elif not task_info.get("enabled", False):
-            return "已禁用", self.colors["paused"]
-        else:
-            return "等待中", self.colors["info"]
 
     def update_upcoming_list(self, tab_name: str):
         """更新即将执行列表（优化版）"""
+
         def execute_in_background():
             try:
                 # 获取即将执行的任务
@@ -731,8 +528,6 @@ class TaskManagerGUI(tk.Tk):
                 current_hash = hash(str(upcoming))
                 if current_hash == last_upcoming_hash and self.partial_updates:
                     return
-
-                last_upcoming_hash = current_hash
 
                 # 清空列表
                 upcoming_tree.delete(*upcoming_tree.get_children())
@@ -757,17 +552,19 @@ class TaskManagerGUI(tk.Tk):
                         time_str
                     ))
 
-            except Exception as e:
+            except Exception:
                 pass  # 静默处理
+
         threading.Thread(target=execute_in_background, daemon=True).start()
 
     def refresh_history(self, tab_name: str):
         """刷新历史记录"""
-        history_text = self.tab_controls[tab_name]['history_text']
         history_tab = self.tab_controls[tab_name]['history_tab']
         task_manager = self.tab_controls[tab_name]['task_manager']
-        if history_text is None:
-            # 延迟创建历史记录文本框
+
+        # 检查历史记录文本框是否存在
+        if self.tab_controls[tab_name]['history_text'] is None:
+            # 创建历史记录文本框
             history_text = scrolledtext.ScrolledText(
                 history_tab,
                 width=40,
@@ -776,6 +573,11 @@ class TaskManagerGUI(tk.Tk):
                 state="disabled"
             )
             history_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=(0, 5))
+            # 保存引用到tab_controls中
+            self.tab_controls[tab_name]['history_text'] = history_text
+        else:
+            # 使用已存在的历史记录文本框
+            history_text = self.tab_controls[tab_name]['history_text']
 
         # 启用文本框进行编辑
         history_text.config(state="normal")
@@ -794,6 +596,8 @@ class TaskManagerGUI(tk.Tk):
 
                 # 格式化行
                 line = f"{timestamp} {task_name}: {event}"
+                if status:
+                    line += f" - {status}"
                 if "result" in record:
                     line += f" - {record['result']}"
                 if "error" in record:
@@ -867,7 +671,7 @@ class TaskManagerGUI(tk.Tk):
         var_name = f"{group}_{function}"
         checkbox_vars = self.tab_controls[tab_name]['checkbox_vars']
         enabled = checkbox_vars[var_name].get()
-        state = "启用" if enabled else "禁用"
+        # state = "启用" if enabled else "禁用"
 
         # 更新状态标签
         # self.status_label.config(text=f"{group} - {function}: {state}", fg='blue')
@@ -901,6 +705,7 @@ class TaskManagerGUI(tk.Tk):
                         if state:
                             self.add_or_remove_task(tab_name, group_name, func_name, True)
             task_manager.start()
+
         threading.Thread(target=execute_in_background, daemon=True).start()
 
     def create_default_config(self):
@@ -937,8 +742,8 @@ class TaskManagerGUI(tk.Tk):
 
                 # 验证并修复配置文件结构
                 merged_config = self.validate_config(config_data)
-                last_modified = os.path.getmtime(config_file)
-                
+                # last_modified = os.path.getmtime(config_file)
+
                 # 如果配置有变化，保存修复后的配置
                 if merged_config != config_data:
                     self.tab_controls[tab_name] = {'current_config': merged_config}
@@ -1001,11 +806,11 @@ class TaskManagerGUI(tk.Tk):
             # 创建默认配置作为基础
             default_config = self.create_default_config()
             merged_config = {}
-            
+
             # 遍历所有应该存在的组
             for group_name in self.function_groups.keys():
                 merged_config[group_name] = {}
-                
+
                 # 如果配置文件中存在该组
                 if group_name in config_data and isinstance(config_data[group_name], dict):
                     # 遍历该组应该包含的所有功能
@@ -1020,7 +825,7 @@ class TaskManagerGUI(tk.Tk):
                 else:
                     # 组不存在，使用默认配置
                     merged_config[group_name] = default_config[group_name]
-            
+
             return merged_config
 
         except Exception as e:
@@ -1102,7 +907,7 @@ class TaskManagerGUI(tk.Tk):
         """更新统计信息"""
         checkbox_vars = self.tab_controls[tab_name]['checkbox_vars']
         enabled = sum(1 for var in checkbox_vars.values() if var.get())
-        disabled = len(checkbox_vars) - enabled
+        # disabled = len(checkbox_vars) - enabled
 
         # 更新底部标签
         if hasattr(self, 'enabled_count'):
@@ -1233,113 +1038,97 @@ class TaskManagerGUI(tk.Tk):
         if isinstance(tab_data, dict):
             self.create_widgets(tab_frame, tab_data)
 
+    def _create_task_methods(self):
+        """动态创建任务方法"""
+        # 定义所有需要动态创建的任务方法名
+        task_methods = [
+            'soldier_training', 'earth_core', 'store_purchase', 'warehouse_reward',
+            'adventure_gains', 'pet_treasure', 'crystal_lab', 'deposit',
+            'daily_commander_reward', 'daily_charge_reward', 'daily_task_reward',
+            'hero_recruit', 'mining', 'monster_hunt', 'monster_hunter',
+            'alliance_donating', 'alliance_treasure', 'world_help', 'island_gain',
+            'travel_gains', 'check_hunter_status', 'set_alliance_mine',
+            'alliance_mobilization', 'frozen_treasure', 'read_mails', 'update_coordinate',
+            'arena_fight', 'crystal_deep', 'romulus_reward', 'intelligence', 'strength_cans'
+        ]
 
-    # =============== 任务函数定义 ===============
-    def soldier_training(self, winter):
-        return winter.soldier_training()
+        for method_name in task_methods:
+            # 创建一个闭包来捕获method_name
+            def make_task_method(name):
+                def task_method(self, winter):
+                    # 获取winter对象中的对应方法并调用
+                    method = getattr(winter, name, None)
+                    if method:
+                        return method()
+                    else:
+                        print(f"Warning: Method {{name}} not found in winter object")
+                        return None
 
-    def earth_core(self, winter):
-        """数据处理任务"""
-        return winter.earth_core()
+                return task_method
 
-    def store_purchase(self, winter):
-        """数据处理任务"""
-        return winter.store_purchase()
+            # 将动态创建的方法绑定到当前实例
+            setattr(self, method_name, make_task_method(method_name).__get__(self, self.__class__))
 
-    def warehouse_reward(self, winter):
-        return winter.warehouse_reward()
+    @staticmethod
+    def load_task_definitions_from_json():
+        """从JSON文件加载任务定义"""
+        try:
+            with open('task_definitions.json', 'r', encoding='utf-8') as f:
+                task_definitions_data = json.load(f)
+            return task_definitions_data
+        except FileNotFoundError:
+            print("警告: 未找到task_definitions.json文件，使用默认配置")
+            return {}
+        except json.JSONDecodeError:
+            print("错误: task_definitions.json文件格式不正确")
+            return {}
 
-    def adventure_gain(self, winter):
-        """数据存储任务"""
-        return winter.adventure_gains()
+    def _convert_task_definitions(self, raw_definitions):
+        """将从JSON加载的原始任务定义转换为内部使用的格式"""
+        converted_definitions = {}
 
-    def pet_treasure(self, winter):
-        return winter.pet_treasure()
+        for group_name, group_tasks in raw_definitions.items():
+            converted_group = {}
+            for task_name, task_config in group_tasks.items():
+                # 将字符串形式的函数名转换为实际的函数引用
+                if 'func_name' in task_config:
+                    func_name = task_config['func_name']
+                    # 从self中获取对应的函数
+                    func_ref = getattr(self, func_name, None)
+                    if func_ref is None:
+                        print(f"警告: 未找到函数 {func_name}")
+                        continue
 
-    def crystal_lab(self, winter):
-        return winter.crystal_lab()
+                    # 替换函数引用并调整配置格式
+                    new_config = {
+                        'func': func_ref,
+                        'requires_game': task_config.get('requires_game', False)
+                    }
 
-    def bank_deposit(self, winter):
-        return winter.deposit()
+                    # 根据schedule_type处理不同类型的调度配置
+                    schedule_type_str = task_config.get('schedule_type', 'INTERVAL')
+                    if schedule_type_str == 'CRON':
+                        new_config['schedule_type'] = ScheduleType.CRON
+                        new_config['cron_expression'] = task_config.get('cron_expression', '* * * * *')
+                        if 'immediate' in task_config:
+                            new_config['immediate'] = task_config['immediate']
+                    elif schedule_type_str == 'INTERVAL':
+                        new_config['schedule_type'] = ScheduleType.INTERVAL
+                        new_config['interval_seconds'] = task_config.get('interval_seconds', 60)
+                        if 'immediate' in task_config:
+                            new_config['immediate'] = task_config['immediate']
 
-    def daily_commander_reward(self, winter):
-        return winter.daily_commander_reward()
+                    converted_group[task_name] = new_config
+            converted_definitions[group_name] = converted_group
 
-    def daily_charge_reward(self, winter):
-        return winter.daily_charge_reward()
-
-    def daily_task_reward(self, winter):
-        return winter.daily_task_reward()
-
-    def hero_recruit(self, winter):
-        return winter.hero_recruit()
-
-    def mining(self, winter):
-        return winter.mining()
-
-    def monster_hunt(self, winter):
-        return winter.monster_hunt()
-
-    def monster_hunter(self, winter):
-        return winter.monster_hunter()
-
-    def alliance_donating(self, winter):
-        return winter.alliance_donating()
-
-    def alliance_treasure(self, winter):
-        return winter.alliance_treasure()
-
-    def performance_analysis_task(self, winter):
-        """性能分析任务"""
-        return winter.world_help()
-
-    def island_gain(self, winter):
-        """用户认证任务"""
-        return winter.island_gain()
-
-    def travel_gains(selfs, winter):
-        return winter.travel_gains()
-
-    def check_hunter_status(self, winter):
-        """数据加密任务"""
-        return winter.check_hunter_status()
-
-    def set_alliance_mine(self, winter):
-        return winter.set_alliance_mine()
-
-    def alliance_mobilization(self, winter):
-        """数据导出任务"""
-        return winter.alliance_mobilization()
-
-    def frozen_treasure(self, winter):
-        """数据导出任务"""
-        return winter.frozen_treasure()
-
-    def read_mails(self, winter):
-        """数据导出任务"""
-        return winter.read_mails()
-
-    def arena_fight(self, winter):
-        return winter.arena_fight()
-
-    def crystal_deep(self, winter):
-        return winter.crystal_deep()
-
-    def romulus_reward(self, winter):
-        return winter.romulus_reward()
-
-    def intelligence(self, winter):
-        return winter.intelligence()
-
-    def strength_cans(self, winter):
-        return winter.strength_cans()
+        return converted_definitions
 
 
 def main():
     """主函数"""
 
     # 创建并运行GUI
-    gui = TaskManagerGUI()
+    TaskManagerGUI()
 
 
 if __name__ == "__main__":
