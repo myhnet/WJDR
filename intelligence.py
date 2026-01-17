@@ -89,7 +89,6 @@ class IntelligenceDeal:
                     current_time = time.time()
                     time_left = self.automator.get_screen_text((100, y + 10, 300, y + 45),
                                                                preprocess=False, numbers=True, with_qwen3=True)
-                    print('time_left is:', time_left)
                     wait_h, wait_m, wait_s = time_left
                     wait_time = current_time + (wait_m * 60 + wait_s) * 2 + 5
             else:
@@ -130,25 +129,20 @@ class IntelligenceDeal:
         wait_time = 0
         while not terminate:
             if should_break():
-                print('情报超时退出。')
                 break
             time.sleep(0.1)
             self.automator.wait_and_click('templates/intelligence_btn.png', threshold=0.92, timeout=1)
 
             positions = self.automator.multiple_images_pos(self.paths, threshold=0.8)
-            print(positions)
 
             i = 0
 
             for key, value in positions.items():
                 if value is None or strength < self.required_strength[key]:
                     i = i + 1
-                    print('skip: type', key, 'strength', strength)
                     if i == len(positions):
                         terminate = True
                     continue
-
-                print('start to deal')
                 if (key == 0 or key == 1) and time.time() - wait_time < 0:
                     continue
                 # 点击查看图标
