@@ -9,8 +9,8 @@ class ImageMatcher:
     """图像匹配工具类"""
 
     @staticmethod
-    def find_template(screenshot: np.ndarray, template: np.ndarray,
-                      threshold: float = 0.8, color_threshold: float = 0.8) -> Optional[Tuple[int, int]]:
+    def find_template(screenshot: np.ndarray, template: np.ndarray, threshold: float = 0.8,
+                      scale_match: bool = False, scale_range: tuple = (0.5, 2.0)) -> Optional[Tuple[int, int]]:
         """
         在屏幕截图中查找模板图像
 
@@ -18,7 +18,8 @@ class ImageMatcher:
             screenshot: 屏幕截图(numpy数组)
             template: 模板图像(numpy数组)
             threshold: 匹配阈值(0-1之间)
-            color_threshold: 匹配阈值(0-1之间)
+            scale_match: 在不同尺度下搜索
+            scale_range: 缩放范围(最小值, 最大值)
 
         Returns:
             匹配位置的坐标(x, y)或None
@@ -35,15 +36,29 @@ class ImageMatcher:
             template_gray = template
 
         # 模板匹配
-        result = cv2.matchTemplate(screenshot_gray, template_gray, cv2.TM_CCOEFF_NORMED)
-        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+        if scale_match:
+            for scale in np.linspace(scale_range[0], scale_range[1], 30):
+                resized = cv2.resize(template_gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+                if resized.shape[0] > screenshot_gray.shape[0] or resized.shape[1] > screenshot_gray.shape[1]:
+                    continue
+                result = cv2.matchTemplate(screenshot_gray, resized, cv2.TM_CCOEFF_NORMED)
+                min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+                if max_val >= threshold:
+                    # 返回中心点坐标
+                    h, w = resized.shape[:2]
+                    center_x = max_loc[0] + w // 2
+                    center_y = max_loc[1] + h // 2
+                    return center_x, center_y
+        else:
+            result = cv2.matchTemplate(screenshot_gray, template_gray, cv2.TM_CCOEFF_NORMED)
+            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
 
-        if max_val >= threshold:
-            # 返回中心点坐标
-            h, w = template_gray.shape[:2]
-            center_x = max_loc[0] + w // 2
-            center_y = max_loc[1] + h // 2
-            return center_x, center_y
+            if max_val >= threshold:
+                # 返回中心点坐标
+                h, w = template_gray.shape[:2]
+                center_x = max_loc[0] + w // 2
+                center_y = max_loc[1] + h // 2
+                return center_x, center_y
 
         return None
 
