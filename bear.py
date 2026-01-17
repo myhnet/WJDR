@@ -12,8 +12,8 @@ target_players = [
      '乱怼', '荷华', '翅膀', '西瓜', '边边', '猴儿', '太美', '宫本'],
     ['肉', '暧昧', '木瓜', '三千梨花树', '节能', '土豆嫂牛肉', 'xy520', '可乐',
      '乱怼', '荷华', '翅膀', '西瓜', '边边', '猴儿', '太美', '宫本'],
-    ['元宝家的元宝', '河东盐运使', '辽东郡', '中年狗叔', '白色糖果',
-     '呆呆鱼', '红色糖果', 'mars', '龙大师', '粉色糖果', '相信光吗', '小蔡头']
+    ['元宝家的元宝', '辽东郡', '中年狗叔', '力刀刃', '白色糖果', '刹力神',
+     '红色糖果', 'mars', '龙大师', '粉色糖果', '驿天蓬', '小蔡头']
 ]
 
 # hero_x = [100, 210, 320, 430, 540, 650, 760, 870]
@@ -269,14 +269,14 @@ def main():
     }
 
     assemble_interval = 350
-    hour = [21, 21, 21]
+    hour = [(19, 30), (19, 30), (21, 0)]
 
     # 判断是否到达开始时间
     now = time.time()
     now_struct = time.localtime(now)
     target_struct = time.struct_time((
         now_struct.tm_year, now_struct.tm_mon, now_struct.tm_mday,
-        hour[device_id], 0, 0,
+        hour[device_id][0], hour[device_id][1], 0,
         now_struct.tm_wday, now_struct.tm_yday, now_struct.tm_isdst
     ))
     target = time.mktime(target_struct)
