@@ -546,17 +546,18 @@ class MumuGameAutomator:
         time.sleep(2)
         return self.start_game()
 
-    def get_image_pos(self, template_path: str, timeout: int = 3,
-                      threshold: float = 0.8, offset_x: int = 0, offset_y: int = 0):
+    def get_image_pos(self, template_path: str, timeout: int = 3, threshold: float = 0.8,
+                      offset_x: int = 0, offset_y: int = 0, scale_match: bool = False, scale_range: tuple = (0.5, 2.0)):
         # print(f"等待图像: {template_path}")
         start_time = time.time()
         template = self.image_matcher.load_template(template_path)
 
-        while time.time() - start_time - 0.1 < timeout:
+        while time.time() - start_time + 0.1 < timeout:
 
             time.sleep(1)
             screenshot = self.adb.screenshot()
-            position = self.image_matcher.find_template(screenshot, template, threshold)
+            position = self.image_matcher.find_template(screenshot, template, threshold,
+                                                        scale_match=scale_match, scale_range=scale_range)
 
             if position:
                 x, y = position
@@ -583,8 +584,8 @@ class MumuGameAutomator:
                     i: img
                 }
             )
-
-        while time.time() - start_time - 0.1 < timeout:
+        # 此处不送去0.1且要求timeout大于0是为当timeout为0时直接执行不等待
+        while timeout > 0 and time.time() - start_time < timeout:
             time.sleep(1)
 
         screenshot = self.adb.screenshot()
@@ -609,6 +610,7 @@ class MumuGameAutomator:
         start_time = time.time()
         template = self.image_matcher.load_template(template_path)
 
+        # 此处减去0.1是为了当timeout为0时，也能执行一次
         while time.time() - start_time - 0.1 < timeout:
             screenshot = self.adb.screenshot()
             positions = self.image_matcher.find_all_templates(screenshot, template, threshold)
@@ -622,23 +624,13 @@ class MumuGameAutomator:
         # print(f"超时: 未找到图像 {template_path}")
         return []
 
-    def wait_and_click(self, template_path: str, timeout: int = 3,
-                       hold: bool = False, hold_time: int = 3,
-                       threshold: float = 0.8, offset_x: int = 0, offset_y: int = 0) -> bool:
-        """
-        等待并点击指定图像
+    def wait_and_click(self, template_path: str, timeout: int = 3, hold: bool = False, hold_time: int = 3,
+                       threshold: float = 0.8, offset_x: int = 0, offset_y: int = 0,
+                       scale_match: bool = False, scale_range: tuple = (0.5, 2.0)) -> bool:
 
-        Args:
-            template_path: 模板图像路径
-            timeout: 超时时间(秒)
-            threshold: 匹配阈值
-            offset_x: X轴偏移
-            offset_y: Y轴偏移
-            hold: 启用长按
-            hold_time: 按住时间，秒
-        """
-        position = self.get_image_pos(template_path=template_path, timeout=timeout,
-                                      threshold=threshold, offset_x=offset_x, offset_y=offset_y)
+        position = self.get_image_pos(template_path=template_path, timeout=timeout, threshold=threshold,
+                                      offset_x=offset_x, offset_y=offset_y,
+                                      scale_match=scale_match, scale_range=scale_range)
 
         if position:
             x, y = position
