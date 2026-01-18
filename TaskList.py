@@ -113,7 +113,7 @@ class WinterLess:
         if not pos1:
             return False
         self.automator.adb.tap(pos1[0], pos1[1])
-        pos2 = self.automator.get_image_pos('templates/my_town_anchor.png')
+        pos2 = self.automator.get_image_pos('templates/my_town_anchor.png', scale_match=True)
         if not pos2:
             return False
         if update_coordinate:
@@ -826,25 +826,13 @@ class WinterLess:
         result = ''
         self.back_to_my_town()
         # 拜访邻居
-        pos2 = self.automator.get_image_pos('templates/island_visit.png')
+        pos2 = self.automator.get_image_pos('templates/island_visit.png', scale_match=True)
         if pos2:
-            pos3_paths = {
-                1: 'templates/island_gain1.png',
-                2: 'templates/island_gain2.png'
-            }
             self.automator.adb.tap(pos2[0], pos2[1])
             self.automator.wait_and_click('templates/OK_btn.png')
-            pos3 = self.automator.multiple_images_pos(pos3_paths, timeout=3)
-            i = 0
-            for value in pos3.values():
-                if value is None:
-                    continue
-                self.automator.adb.tap(value[0], value[1])
-                i = i + 1
-                break
-            self.automator.adb.tap(66, 43)
-            time.sleep(0.5)
-            if i > 0:
+            pos3 = self.automator.get_image_pos('templates/island_gain1.png', timeout=3, scale_match=True)
+            if pos3:
+                self.automator.adb.tap(pos3[0], pos3[1])
                 result = '拜访邻居，获得收益。'
             self.back_to_world()
 
