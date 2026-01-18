@@ -487,23 +487,14 @@ class MumuGameAutomator:
                         numbers: bool = False, preprocess: bool = True, with_qwen3: bool = True) -> str:
 
         value = None
-        i = 0
+        screenshot = self.adb.screenshot()
         # return self.ocr.extract_text(screenshot, preprocess=preprocess, region=region)
         if numbers:
-            while not value:
-                screenshot = self.adb.screenshot()
-                value = self.ocr.extract_numbers(screenshot, preprocess=preprocess,
-                                                 region=region, with_qwen3=with_qwen3)
-                i = i + 1
-                if i > 5:
-                    break
+            value = self.ocr.extract_numbers(screenshot, preprocess=preprocess,
+                                             region=region, with_qwen3=with_qwen3)
         else:
-            while not value:
-                screenshot = self.adb.screenshot()
-                value = self.ocr.extract_text(screenshot, preprocess=preprocess, region=region, with_qwen3=with_qwen3)
-                i = i + 1
-                if i > 5:
-                    break
+            value = self.ocr.extract_text(screenshot, preprocess=preprocess, region=region, with_qwen3=with_qwen3)
+
 
         return value
 
