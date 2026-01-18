@@ -237,7 +237,7 @@ class WinterLess:
 
         # 点击联盟互助
         while time.time() - start_time < 1.9:
-            self.automator.adb.tap(790, 1645)
+            self.automator.adb.tap(853, 1650, random_range=1)
         return result
 
     def under_attack(self, x, y):
@@ -1299,10 +1299,9 @@ class WinterLess:
 
         self.automator.wait_and_click("templates/arena_btn.png", timeout=time_out)
 
-        time_left = 5
         i = 0
         fight_info = ''
-        while time_left > 0:
+        while True:
             if should_break():
                 break
             text = self.automator.get_screen_text(with_qwen3=True)
@@ -1313,6 +1312,9 @@ class WinterLess:
             # 如果本身战力为0，继续循环
             if my_power == 0 or time_left == 99:
                 continue
+
+            if time_left == 0:
+                break
 
             # 找出五位玩家中战力最小的
             players = text['players']
