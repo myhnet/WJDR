@@ -15,7 +15,6 @@ from TaskQueueManager import GameTaskManager, ScheduleType
 
 class TaskManagerGUI(tk.Tk):
     """优化版任务管理器图形界面"""
-
     def __init__(self):
         super().__init__()
 
@@ -88,10 +87,9 @@ class TaskManagerGUI(tk.Tk):
 
         self.task_ids = {}  # 存储功能名称到任务ID的映射
 
-        # 从JSON文件加载任务定义并立即转换格式
-        raw_task_definitions = self.load_task_definitions_from_json()
-        self.task_definitions = self._convert_task_definitions(raw_task_definitions)
-
+        # 从JSON文件加载任务定义
+        self.task_definitions = self.load_task_definitions_from_json()
+        self._initialize_task_definitions_mapping()
         self.function_groups = {}
         for group_name, functions in self.task_definitions.items():
             self.function_groups[group_name] = list(functions.keys())
@@ -514,7 +512,6 @@ class TaskManagerGUI(tk.Tk):
 
     def update_upcoming_list(self, tab_name: str):
         """更新即将执行列表（优化版）"""
-
         def execute_in_background():
             try:
                 # 获取即将执行的任务
@@ -554,14 +551,13 @@ class TaskManagerGUI(tk.Tk):
 
             except Exception:
                 pass  # 静默处理
-
         threading.Thread(target=execute_in_background, daemon=True).start()
 
     def refresh_history(self, tab_name: str):
         """刷新历史记录"""
         history_tab = self.tab_controls[tab_name]['history_tab']
         task_manager = self.tab_controls[tab_name]['task_manager']
-
+        
         # 检查历史记录文本框是否存在
         if self.tab_controls[tab_name]['history_text'] is None:
             # 创建历史记录文本框
@@ -595,9 +591,7 @@ class TaskManagerGUI(tk.Tk):
                 status = record.get("status", "")
 
                 # 格式化行
-                line = f"{timestamp} {task_name}: {event}"
-                if status:
-                    line += f" - {status}"
+                line = f"{timestamp} {task_name}: {event} {status}"
                 if "result" in record:
                     line += f" - {record['result']}"
                 if "error" in record:
@@ -651,7 +645,7 @@ class TaskManagerGUI(tk.Tk):
                     event = record.get("event", "")
                     status = record.get("status", "")
 
-                    line = f"{timestamp} - {task_name} - {event} - {status}"
+                    line = f"{timestamp} - [{status}]{task_name} - {event}"
                     if "result" in record:
                         line += f" - {record['result']}"
                     if "error" in record:
@@ -705,7 +699,6 @@ class TaskManagerGUI(tk.Tk):
                         if state:
                             self.add_or_remove_task(tab_name, group_name, func_name, True)
             task_manager.start()
-
         threading.Thread(target=execute_in_background, daemon=True).start()
 
     def create_default_config(self):
@@ -743,7 +736,7 @@ class TaskManagerGUI(tk.Tk):
                 # 验证并修复配置文件结构
                 merged_config = self.validate_config(config_data)
                 # last_modified = os.path.getmtime(config_file)
-
+                
                 # 如果配置有变化，保存修复后的配置
                 if merged_config != config_data:
                     self.tab_controls[tab_name] = {'current_config': merged_config}
@@ -806,11 +799,11 @@ class TaskManagerGUI(tk.Tk):
             # 创建默认配置作为基础
             default_config = self.create_default_config()
             merged_config = {}
-
+            
             # 遍历所有应该存在的组
             for group_name in self.function_groups.keys():
                 merged_config[group_name] = {}
-
+                
                 # 如果配置文件中存在该组
                 if group_name in config_data and isinstance(config_data[group_name], dict):
                     # 遍历该组应该包含的所有功能
@@ -825,7 +818,7 @@ class TaskManagerGUI(tk.Tk):
                 else:
                     # 组不存在，使用默认配置
                     merged_config[group_name] = default_config[group_name]
-
+            
             return merged_config
 
         except Exception as e:
@@ -1042,16 +1035,16 @@ class TaskManagerGUI(tk.Tk):
         """动态创建任务方法"""
         # 定义所有需要动态创建的任务方法名
         task_methods = [
-            'soldier_training', 'earth_core', 'store_purchase', 'warehouse_reward',
-            'adventure_gains', 'pet_treasure', 'crystal_lab', 'deposit',
-            'daily_commander_reward', 'daily_charge_reward', 'daily_task_reward',
-            'hero_recruit', 'mining', 'monster_hunt', 'monster_hunter',
-            'alliance_donating', 'alliance_treasure', 'world_help', 'island_gain',
-            'travel_gains', 'check_hunter_status', 'set_alliance_mine',
+            'soldier_training', 'earth_core', 'store_purchase', 'warehouse_reward', 
+            'adventure_gains', 'pet_treasure', 'crystal_lab', 'deposit', 
+            'daily_commander_reward', 'daily_charge_reward', 'daily_task_reward', 
+            'hero_recruit', 'mining', 'monster_hunt', 'monster_hunter', 
+            'alliance_donating', 'alliance_treasure', 'world_help', 'island_gain', 
+            'travel_gains', 'check_hunter_status', 'set_alliance_mine', 
             'alliance_mobilization', 'frozen_treasure', 'read_mails', 'update_coordinate',
             'arena_fight', 'crystal_deep', 'romulus_reward', 'intelligence', 'strength_cans'
         ]
-
+        
         for method_name in task_methods:
             # 创建一个闭包来捕获method_name
             def make_task_method(name):
@@ -1063,9 +1056,8 @@ class TaskManagerGUI(tk.Tk):
                     else:
                         print(f"Warning: Method {{name}} not found in winter object")
                         return None
-
                 return task_method
-
+            
             # 将动态创建的方法绑定到当前实例
             setattr(self, method_name, make_task_method(method_name).__get__(self, self.__class__))
 
@@ -1083,12 +1075,9 @@ class TaskManagerGUI(tk.Tk):
             print("错误: task_definitions.json文件格式不正确")
             return {}
 
-    def _convert_task_definitions(self, raw_definitions):
-        """将从JSON加载的原始任务定义转换为内部使用的格式"""
-        converted_definitions = {}
-
-        for group_name, group_tasks in raw_definitions.items():
-            converted_group = {}
+    def _initialize_task_definitions_mapping(self):
+        """初始化任务定义映射，将函数名字符串转换为实际函数引用"""
+        for group_name, group_tasks in self.task_definitions.items():
             for task_name, task_config in group_tasks.items():
                 # 将字符串形式的函数名转换为实际的函数引用
                 if 'func_name' in task_config:
@@ -1098,13 +1087,13 @@ class TaskManagerGUI(tk.Tk):
                     if func_ref is None:
                         print(f"警告: 未找到函数 {func_name}")
                         continue
-
+                    
                     # 替换函数引用并调整配置格式
                     new_config = {
                         'func': func_ref,
                         'requires_game': task_config.get('requires_game', False)
                     }
-
+                    
                     # 根据schedule_type处理不同类型的调度配置
                     schedule_type_str = task_config.get('schedule_type', 'INTERVAL')
                     if schedule_type_str == 'CRON':
@@ -1117,11 +1106,9 @@ class TaskManagerGUI(tk.Tk):
                         new_config['interval_seconds'] = task_config.get('interval_seconds', 60)
                         if 'immediate' in task_config:
                             new_config['immediate'] = task_config['immediate']
-
-                    converted_group[task_name] = new_config
-            converted_definitions[group_name] = converted_group
-
-        return converted_definitions
+                    
+                    # 更新配置
+                    self.task_definitions[group_name][task_name] = new_config
 
 
 def main():
