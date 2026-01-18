@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 import re
 import base64
+import ollama
 import requests
 from PIL import Image
 from io import BytesIO
@@ -104,8 +105,6 @@ class OCRProcessor:
                 # Encode the image as base64
                 image_base64 = base64.b64encode(image_data2).decode('utf-8')
                 result = self.extract_text_qwen3(image_base64)
-                if not result:
-                    result = self.extract_text_qwen3(image_base64)
                 return result
 
             # 预处理图像
@@ -133,23 +132,24 @@ class OCRProcessor:
 
     @staticmethod
     def extract_text_qwen3(image_base64) -> str:
-        prompt = """请提取图片中的所有文字内容，只输出识别到的文字。
-
-        要求：
-        1. 列出所有可见文字
-        2. 保持原顺序
-        3. 不要解释、不要推理、不要思考
-        4. 文字之间用换行分隔"""
+        prompt = """请直接提取图片中的所有文字内容。要求：
+        1. 直接输出文字，不要有任何解释、分析或思考过程
+        2. 保持文字原有的顺序和格式
+        3. 如果是多行文字，按行输出
+        4. 如果有不同区域的文字，用空行分隔
+        
+        图片文字内容："""
 
         payload = {
             "model": "qwen3-vl",
             "prompt": prompt,
             "images": [image_base64],
             "stream": False,
-            "options": {
-                "temperature": 0.5,  # 降低随机性，更确定性
-                "num_predict": 1000
-            }
+            # "options": {
+            #    "temperature": 0.2,  # 降低随机性，更确定性
+            #    "num_predict": 5000,
+            #    "stop": ["<|im_end|>", "<|endoftext|>"]
+            # }
         }
 
         # Make the API request
@@ -161,6 +161,7 @@ class OCRProcessor:
         # Parse the response
         if response.status_code == 200:
             result = response.json()
+            # print(result)
             return result['response']
         else:
             return ''
