@@ -15,6 +15,7 @@ from TaskQueueManager import GameTaskManager, ScheduleType
 
 class TaskManagerGUI(tk.Tk):
     """优化版任务管理器图形界面"""
+
     def __init__(self):
         super().__init__()
 
@@ -85,11 +86,10 @@ class TaskManagerGUI(tk.Tk):
         self.update_interval = 2000  # 2秒更新一次
         self.partial_updates = True  # 启用部分更新
 
-        self.task_ids = {}  # 存储功能名称到任务ID的映射
+        # 从JSON文件加载任务定义并立即转换格式
+        raw_task_definitions = self.load_task_definitions_from_json()
+        self.task_definitions = self._convert_task_definitions(raw_task_definitions)
 
-        # 从JSON文件加载任务定义
-        self.task_definitions = self.load_task_definitions_from_json()
-        self._initialize_task_definitions_mapping()
         self.function_groups = {}
         for group_name, functions in self.task_definitions.items():
             self.function_groups[group_name] = list(functions.keys())
@@ -296,6 +296,9 @@ class TaskManagerGUI(tk.Tk):
         self.create_group(tasks_toolbar, tab_name, "阶段性任务", self.function_groups["阶段性任务"],
                           column=2, row=1, columns=2)
 
+        # 打熊参数设置
+        self.bear_group(tasks_toolbar, tab_name, column=2, row=0)
+
         # 详情标签页
         details_tab = ttk.Frame(notebook)
         notebook.add(details_tab, text="📄 详情")
@@ -428,6 +431,58 @@ class TaskManagerGUI(tk.Tk):
             )
             checkbox.grid(row=row_in_col, column=col, sticky='w', padx=15)
 
+    def bear_group(self, parent, tab_name, column, row):
+        group_frame = ttk.LabelFrame(
+            parent,
+            text='自动打熊',
+            style='Group.TLabelframe'
+        )
+        group_frame.grid(
+            row=row, column=column,
+            sticky='nsew', padx=5, pady=5
+        )
+        bear_settings = self.tab_controls[tab_name]['bear_settings']
+
+        # 开启/关闭自动打熊
+        bear_enabled = bear_settings.get('enabled', False)
+        var = tk.BooleanVar(value=bear_enabled)
+        self.tab_controls[tab_name]['checkbox_vars']['bear_hunting'] = var
+        checkbox = ttk.Checkbutton(group_frame, text='开启', variable=var,
+                                   command=lambda t=tab_name: self.enable_disable_bear_hunting(t))
+        checkbox.grid(row=0, column=0, sticky='w', padx=5)
+
+        # 设置自动打熊时间
+        hour_var = tk.StringVar(value=bear_settings.get('hour', '21'))
+        self.tab_controls[tab_name]['checkbox_vars']['bear_settings_hour'] = hour_var
+        hour_combo = ttk.Combobox(group_frame, textvariable=hour_var, width=3, state='readonly',
+                                  values=[f"{i:02d}" for i in range(24)])
+        hour_combo.grid(row=0, column=1, sticky='w',)
+        ttk.Label(group_frame, text='时').grid(row=0, column=2, sticky='w')
+        minute_var = tk.StringVar(value=bear_settings.get('minute', '00'))
+        self.tab_controls[tab_name]['checkbox_vars']['bear_settings_minute'] = minute_var
+        minute_combo = ttk.Combobox(group_frame, textvariable=minute_var, width=3, state='readonly',
+                                    values=[f"{i:02d}" for i in range(60)])
+        minute_combo.grid(row=0, column=3, sticky='w')
+        ttk.Label(group_frame, text='分').grid(row=0, column=4, sticky='w')
+
+        hour_var.trace_add("write", lambda *args, t=tab_name: self.change_bear_start_time(t))
+        minute_var.trace_add("write", lambda *args, t=tab_name: self.change_bear_start_time(t))
+
+        # 换装设置
+        swap_frame = ttk.LabelFrame(
+            group_frame,
+            text='英雄换装',
+            style='Group.TLabelframe'
+        )
+        swap_frame.grid(row=1, column=0, sticky='nsew', padx=5, pady=5)
+        ttk.Label(swap_frame, text='弓').grid(row=0, column=0, sticky='w', padx=5)
+        ttk.Label(swap_frame, text='盾').grid(row=1, column=0, sticky='w', padx=5)
+        ttk.Label(swap_frame, text='矛').grid(row=2, column=0, sticky='w', padx=5)
+
+        # 根据配置启用或者移除自动打熊
+        if bear_enabled:
+            self.enable_disable_bear_hunting(tab_name, save=False)
+
     def start_update_loop(self):
         """启动更新循环"""
         self.update_display()
@@ -512,6 +567,7 @@ class TaskManagerGUI(tk.Tk):
 
     def update_upcoming_list(self, tab_name: str):
         """更新即将执行列表（优化版）"""
+
         def execute_in_background():
             try:
                 # 获取即将执行的任务
@@ -551,13 +607,14 @@ class TaskManagerGUI(tk.Tk):
 
             except Exception:
                 pass  # 静默处理
+
         threading.Thread(target=execute_in_background, daemon=True).start()
 
     def refresh_history(self, tab_name: str):
         """刷新历史记录"""
         history_tab = self.tab_controls[tab_name]['history_tab']
         task_manager = self.tab_controls[tab_name]['task_manager']
-        
+
         # 检查历史记录文本框是否存在
         if self.tab_controls[tab_name]['history_text'] is None:
             # 创建历史记录文本框
@@ -591,7 +648,9 @@ class TaskManagerGUI(tk.Tk):
                 status = record.get("status", "")
 
                 # 格式化行
-                line = f"{timestamp} {task_name}: {event} {status}"
+                line = f"{timestamp} {task_name}: {event}"
+                if status:
+                    line += f" - {status}"
                 if "result" in record:
                     line += f" - {record['result']}"
                 if "error" in record:
@@ -645,7 +704,7 @@ class TaskManagerGUI(tk.Tk):
                     event = record.get("event", "")
                     status = record.get("status", "")
 
-                    line = f"{timestamp} - [{status}]{task_name} - {event}"
+                    line = f"{timestamp} - {task_name} - {event} - {status}"
                     if "result" in record:
                         line += f" - {record['result']}"
                     if "error" in record:
@@ -699,6 +758,7 @@ class TaskManagerGUI(tk.Tk):
                         if state:
                             self.add_or_remove_task(tab_name, group_name, func_name, True)
             task_manager.start()
+
         threading.Thread(target=execute_in_background, daemon=True).start()
 
     def create_default_config(self):
@@ -733,10 +793,13 @@ class TaskManagerGUI(tk.Tk):
                 if "_metadata" in config_data:
                     config_data.pop("_metadata")
 
+                if "bear_settings" in config_data:
+                    self.tab_controls[tab_name]['bear_settings'] = config_data.pop("bear_settings")
+
                 # 验证并修复配置文件结构
                 merged_config = self.validate_config(config_data)
                 # last_modified = os.path.getmtime(config_file)
-                
+
                 # 如果配置有变化，保存修复后的配置
                 if merged_config != config_data:
                     self.tab_controls[tab_name] = {'current_config': merged_config}
@@ -777,6 +840,13 @@ class TaskManagerGUI(tk.Tk):
                         config_data[group_name][func_name] = self.default_config.get(group_name, {}).get(func_name,
                                                                                                          False)
 
+            # 打熊配置
+            config_data["bear_settings"] = {
+                "enabled": checkbox_vars['bear_hunting'].get(),
+                "hour": checkbox_vars['bear_settings_hour'].get(),
+                "minute": checkbox_vars['bear_settings_minute'].get()
+            }
+
             # 添加元数据
             config_data["_metadata"] = {
                 "last_modified": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
@@ -799,11 +869,11 @@ class TaskManagerGUI(tk.Tk):
             # 创建默认配置作为基础
             default_config = self.create_default_config()
             merged_config = {}
-            
+
             # 遍历所有应该存在的组
             for group_name in self.function_groups.keys():
                 merged_config[group_name] = {}
-                
+
                 # 如果配置文件中存在该组
                 if group_name in config_data and isinstance(config_data[group_name], dict):
                     # 遍历该组应该包含的所有功能
@@ -818,7 +888,7 @@ class TaskManagerGUI(tk.Tk):
                 else:
                     # 组不存在，使用默认配置
                     merged_config[group_name] = default_config[group_name]
-            
+
             return merged_config
 
         except Exception as e:
@@ -836,9 +906,6 @@ class TaskManagerGUI(tk.Tk):
                 # 添加任务到任务管理器
                 if group_name in self.task_definitions and func_name in self.task_definitions[group_name]:
                     task_config = self.task_definitions[group_name][func_name]
-
-                    # 生成唯一任务ID
-                    task_id = f"{group_name}_{func_name}_{int(datetime.now().timestamp())}"
 
                     # 添加任务
                     if task_config["schedule_type"] is ScheduleType.CRON:
@@ -859,9 +926,6 @@ class TaskManagerGUI(tk.Tk):
                             enabled=True
                         )
 
-                    # 保存任务ID
-                    self.task_ids[task_key] = task_id
-                    # print(f"已添加任务: {group_name} - {func_name}")
             else:
                 # 从任务管理器移除任务
                 # 查找并移除该功能对应的任务
@@ -873,10 +937,6 @@ class TaskManagerGUI(tk.Tk):
                 for task_id in tasks_to_remove:
                     task_manager.remove_task(task_id)
                     # print(f"已移除任务: {group_name} - {func_name}")
-
-                # 从task_ids中移除
-                if task_key in self.task_ids:
-                    del self.task_ids[task_key]
 
         threading.Thread(target=execute_in_background, daemon=True).start()
 
@@ -1035,16 +1095,17 @@ class TaskManagerGUI(tk.Tk):
         """动态创建任务方法"""
         # 定义所有需要动态创建的任务方法名
         task_methods = [
-            'soldier_training', 'earth_core', 'store_purchase', 'warehouse_reward', 
-            'adventure_gains', 'pet_treasure', 'crystal_lab', 'deposit', 
-            'daily_commander_reward', 'daily_charge_reward', 'daily_task_reward', 
-            'hero_recruit', 'mining', 'monster_hunt', 'monster_hunter', 
-            'alliance_donating', 'alliance_treasure', 'world_help', 'island_gain', 
-            'travel_gains', 'check_hunter_status', 'set_alliance_mine', 
+            'soldier_training', 'earth_core', 'store_purchase', 'warehouse_reward',
+            'adventure_gains', 'pet_treasure', 'crystal_lab', 'deposit',
+            'daily_commander_reward', 'daily_charge_reward', 'daily_task_reward',
+            'hero_recruit', 'mining', 'monster_hunt', 'monster_hunter',
+            'alliance_donating', 'alliance_treasure', 'world_help', 'island_gain',
+            'travel_gains', 'check_hunter_status', 'set_alliance_mine',
             'alliance_mobilization', 'frozen_treasure', 'read_mails', 'update_coordinate',
-            'arena_fight', 'crystal_deep', 'romulus_reward', 'intelligence', 'strength_cans'
+            'arena_fight', 'crystal_deep', 'romulus_reward', 'intelligence', 'strength_cans',
+            'enable_pet_fight_buff', 'recall_all_troops', 'bear_hunting'
         ]
-        
+
         for method_name in task_methods:
             # 创建一个闭包来捕获method_name
             def make_task_method(name):
@@ -1056,10 +1117,18 @@ class TaskManagerGUI(tk.Tk):
                     else:
                         print(f"Warning: Method {{name}} not found in winter object")
                         return None
+
                 return task_method
-            
+
             # 将动态创建的方法绑定到当前实例
             setattr(self, method_name, make_task_method(method_name).__get__(self, self.__class__))
+
+    def swap_hero_arm(self, automator):
+        swap_list = {
+            1: ['Renee', 'Mia'],
+            2: ['Gato', 'Hector']
+        }
+        return automator.swap_hero_arm(swap_list)
 
     @staticmethod
     def load_task_definitions_from_json():
@@ -1075,9 +1144,93 @@ class TaskManagerGUI(tk.Tk):
             print("错误: task_definitions.json文件格式不正确")
             return {}
 
-    def _initialize_task_definitions_mapping(self):
-        """初始化任务定义映射，将函数名字符串转换为实际函数引用"""
-        for group_name, group_tasks in self.task_definitions.items():
+    def enable_disable_bear_hunting(self, tab_name, save: bool = True):
+        checkbox_vars = self.tab_controls[tab_name]['checkbox_vars']
+        enabled = checkbox_vars['bear_hunting'].get()
+
+        def execute_in_background():
+            if enabled:
+                self.enable_disable_bear_tasks(tab_name, checkbox_vars, enable=True)
+            else:
+                self.enable_disable_bear_tasks(tab_name, checkbox_vars, enable=False)
+
+        threading.Thread(target=execute_in_background, daemon=True).start()
+
+        if save:
+            self.auto_save_config(tab_name)
+
+    def change_bear_start_time(self, tab_name):
+        checkbox_vars = self.tab_controls[tab_name]['checkbox_vars']
+        enabled = checkbox_vars['bear_hunting'].get()
+
+        if enabled:
+            def execute_in_background():
+                self.enable_disable_bear_tasks(tab_name, checkbox_vars, enable=False)
+                self.enable_disable_bear_tasks(tab_name, checkbox_vars, enable=True)
+            threading.Thread(target=execute_in_background, daemon=True).start()
+        self.auto_save_config(tab_name)
+
+    def enable_disable_bear_tasks(self, tab_name, checkbox_vars, enable: bool = True):
+        task_manager = self.tab_controls[tab_name]['task_manager']
+
+        if enable:
+            hour = checkbox_vars['bear_settings_hour'].get()
+            minute = checkbox_vars['bear_settings_minute'].get()
+
+            def get_time_ahead(h, m, ahead_minutes):
+                m = int(m)
+                h = int(h)
+                if m < ahead_minutes:
+                    m = m - ahead_minutes + 60
+                    h = h - 1 if h > 0 else 23
+                else:
+                    m = m - ahead_minutes
+                    h = h
+                return h, m
+
+            cron_expression_fight = f"{minute} {hour} * * *"
+
+            hour_pet, minute_pet = get_time_ahead(hour, minute, 10)
+            cron_expression_pet = f"{minute_pet} {hour_pet} * * *"
+
+            hour_recall, minute_recall = get_time_ahead(hour, minute, 5)
+            cron_expression_recall = f"{minute_recall} {hour_recall} * * *"
+
+            task_manager.add_cron_task(
+                name="巨熊行动 - 开启宠物",
+                func=self.enable_pet_fight_buff,
+                cron_expression=cron_expression_pet,
+                enabled=True
+            )
+
+            task_manager.add_cron_task(
+                name="巨熊行动 - 召回部队",
+                func=self.recall_all_troops,
+                cron_expression=cron_expression_recall,
+                enabled=True
+            )
+
+            task_manager.add_cron_task(
+                name="巨熊行动 - 开启狩猎",
+                func=self.bear_hunting,
+                cron_expression=cron_expression_fight,
+                enabled=True
+            )
+        else:
+            tasks_to_remove = []
+            for task in task_manager.list_tasks():
+                if "巨熊行动 - " in task['name']:
+                    tasks_to_remove.append(task['task_id'])
+
+            for task_id in tasks_to_remove:
+                task_manager.remove_task(task_id)
+
+    def _convert_task_definitions(self, raw_definitions):
+        """将从JSON加载的原始任务定义转换为内部使用的格式"""
+        converted_definitions = {}
+
+        for group_name, group_tasks in raw_definitions.items():
+            converted_group = {}
             for task_name, task_config in group_tasks.items():
                 # 将字符串形式的函数名转换为实际的函数引用
                 if 'func_name' in task_config:
@@ -1087,13 +1240,13 @@ class TaskManagerGUI(tk.Tk):
                     if func_ref is None:
                         print(f"警告: 未找到函数 {func_name}")
                         continue
-                    
+
                     # 替换函数引用并调整配置格式
                     new_config = {
                         'func': func_ref,
                         'requires_game': task_config.get('requires_game', False)
                     }
-                    
+
                     # 根据schedule_type处理不同类型的调度配置
                     schedule_type_str = task_config.get('schedule_type', 'INTERVAL')
                     if schedule_type_str == 'CRON':
@@ -1106,15 +1259,15 @@ class TaskManagerGUI(tk.Tk):
                         new_config['interval_seconds'] = task_config.get('interval_seconds', 60)
                         if 'immediate' in task_config:
                             new_config['immediate'] = task_config['immediate']
-                    
-                    # 更新配置
-                    self.task_definitions[group_name][task_name] = new_config
+
+                    converted_group[task_name] = new_config
+            converted_definitions[group_name] = converted_group
+
+        return converted_definitions
 
 
 def main():
     """主函数"""
-
-    # 创建并运行GUI
     TaskManagerGUI()
 
 
