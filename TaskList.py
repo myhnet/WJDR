@@ -1,6 +1,7 @@
 import re
 import time
 import functools
+import bear
 from MumuManager import MumuGameAutomator
 from intelligence import IntelligenceDeal
 from typing import List, Dict, Tuple
@@ -32,19 +33,26 @@ def format_arena(text: str):
     text = text.strip("' ,")
 
     # 定义各部分的正则表达式模式
-    header_pattern = r'^(挑战列表)\n我的实力：\s*([\d,]+)'
+    # 修改header_pattern，匹配"挑战列表"和"我的实力："之间任意字符（包括空格、换行等）
+    header_pattern = r'^(挑战列表)[\s\S]*?我的实力：\s*([\d,]+)'
 
     # 玩家信息模式（捕获组：前缀、中文名、战斗力、得分、排行）
-    player_pattern = r'(\[[^\]]+\])([^\n]+)\n([\d,\.]+万?)\n([\d,]+)\n#\s*(\d+)'
+    # 修改player_pattern，更准确地匹配玩家信息，忽略字符串间的空格与换行，前缀[]部分可选，#号排名部分可选
+    player_pattern = r'(?:\[([^\]]+)\]\s*)?([^\s]+)\s+([\d,.]+万?)\s+([\d,]+)(?:\s*#\s*(\d+))?'
 
     # 结束部分模式
-    footer_pattern = r'今日剩余挑战次数：\s*(\d+)\n([^\n]+)$'
+    footer_pattern = r'今日剩余挑战次数：\s*(\d+)[\s\S]*?([^\s]+)$'
 
     # 匹配表头
-    header_match = re.search(header_pattern, text)
+    header_match = re.search(header_pattern, text, re.MULTILINE)
 
-    # 匹配所有玩家
-    player_matches = re.findall(player_pattern, text, re.MULTILINE)
+    # 从表头匹配位置之后开始查找玩家信息，避免匹配到表头数据
+    start_pos = 0
+    if header_match:
+        start_pos = header_match.end()
+    
+    # 在表头之后的部分匹配所有玩家
+    player_matches = re.findall(player_pattern, text[start_pos:], re.MULTILINE)
 
     # 匹配结束部分
     footer_match = re.search(footer_pattern, text, re.MULTILINE)
@@ -62,14 +70,22 @@ def format_arena(text: str):
     # 填充玩家信息
     players = []
     for match in player_matches:
-        prefix, chinese_name, combat_power, score, rank = match
-
+        # match现在包含：(prefix_content, chinese_name, combat_power, score, rank)，其中prefix_content和rank可能为None
+        prefix_content, chinese_name, combat_power, score, rank = match
+        
+        # 如果有前缀内容，则构造完整的前缀，否则前缀为空
+        prefix = f"[{prefix_content}]" if prefix_content else ""
+        
         # 计算战斗力的数值
         power_num = combat_power.replace(',', '')
         if '万' in power_num:
             power_num = float(power_num.replace('万', '')) * 10000
         else:
             power_num = float(power_num)
+
+        # 如果有排名，则构造完整排名字符串，否则为空
+        rank_str = f"#{rank}" if rank else ""
+        rank_numeric = int(rank) if rank else 0
 
         player_data = {
             "full_name": f"{prefix}{chinese_name}",
@@ -79,8 +95,8 @@ def format_arena(text: str):
             "combat_power_numeric": power_num,
             "score": score,
             "score_numeric": int(score.replace(',', '')),
-            "rank": f"#{rank}",
-            "rank_numeric": int(rank)
+            "rank": rank_str,
+            "rank_numeric": rank_numeric
         }
         players.append(player_data)
 
@@ -212,7 +228,8 @@ class WinterLess:
         world_icons = {
             0: 'templates/attacked.png',
             1: 'templates/redpack1.png',
-            2: 'templates/soldier_cure.png'
+            2: 'templates/soldier_cure.png',
+            3: 'templates/garrison.png'
         }
         games_status = self.automator.multiple_images_pos(world_icons)
         for key, value in games_status.items():
@@ -232,7 +249,11 @@ class WinterLess:
                     time.sleep(0.1)
                     self.automator.adb.tap(pos[0], pos[1])
             elif key == 3:
-                print('join assemble.')
+                x, y = value
+                x = x + 227
+                y = y + 15
+                self.automator.adb.tap(x, y)
+                self.automator.wait_and_click('templates/OK_btn.png')
             break
 
         # 点击联盟互助
@@ -402,30 +423,32 @@ class WinterLess:
         self.automator.adb.swipe(516, 1400, 548, 500)
         time.sleep(0.5)
         output = output + self.automator.get_screen_text((200, 1350, 800, 1500))
+        print(output)
         output = self.extract_numbers_with_context(output)
+        print(output)
         if output:
             for i in output:
+                print(i['task_name'], i['collected'], i['total'])
                 if i['collected'] < i['total']:
-                    if i['collected'] < i['total']:
-                        if i['task_name'] == '冰原巨兽':
-                            self.monster_target.update({'turtle': True})
-                        if i['task_name'] == '英雄的使命':
-                            self.monster_target.update({'reaper': True})
-                        if i['task_name'] == '吉娜的反击':
-                            self.monster_target.update({'gina': True})
-                        if '佣兵' in i['task_name']:
-                            self.monster_target.update({'mercenary1': True})
-                            self.monster_target.update({'mercenary2': True})
-                    else:
-                        if i['task_name'] == '冰原巨兽':
-                            self.monster_target.update({'turtle': False})
-                        if i['task_name'] == '英雄的使命':
-                            self.monster_target.update({'reaper': False})
-                        if i['task_name'] == '吉娜的反击':
-                            self.monster_target.update({'gina': False})
-                        if '佣兵' in i['task_name']:
-                            self.monster_target.update({'mercenary1': False})
-                            self.monster_target.update({'mercenary2': False})
+                    if i['task_name'] == '冰原巨兽':
+                        self.monster_target.update({'turtle': True})
+                    if i['task_name'] == '英雄的使命':
+                        self.monster_target.update({'reaper': True})
+                    if i['task_name'] == '吉娜的反击':
+                        self.monster_target.update({'gina': True})
+                    if '佣兵' in i['task_name']:
+                        self.monster_target.update({'mercenary1': True})
+                        self.monster_target.update({'mercenary2': True})
+                else:
+                    if i['task_name'] == '冰原巨兽':
+                        self.monster_target.update({'turtle': False})
+                    if i['task_name'] == '英雄的使命':
+                        self.monster_target.update({'reaper': False})
+                    if i['task_name'] == '吉娜的反击':
+                        self.monster_target.update({'gina': False})
+                    if '佣兵' in i['task_name']:
+                        self.monster_target.update({'mercenary1': False})
+                        self.monster_target.update({'mercenary2': False})
             result = result + str(self.monster_target)
         else:
             result = result + 'OCR失败，信息更新失败。'
@@ -591,9 +614,7 @@ class WinterLess:
                     result.append({
                         'task_name': current_task,
                         'collected': x,
-                        'total': y,
-                        'ratio': f"{x}/{y}",
-                        'percentage': round(x / y * 100, 2) if y > 0 else 0
+                        'total': y
                     })
 
         return result
@@ -647,6 +668,12 @@ class WinterLess:
                 3: 'templates/mine_coal_alliance_search.png',
                 4: 'templates/mine_iron_alliance_search.png'
             }
+            co_mining_heros = {
+                'meal': ['Moli', 'Ahmose'],
+                'wood': ['Wayne', 'Moli'],
+                'coal': ['Moli', 'Wayne'],
+                'iron': ['Wayne', 'Moli']
+            }
 
             self.automator.wait_and_click('templates/world_search.png', timeout=1)
             self.automator.adb.swipe(100, 1350, 900, 1350, 500)
@@ -676,11 +703,10 @@ class WinterLess:
                 self.automator.wait_and_click('templates/mine_btn1.png')
                 self.automator.wait_and_click('templates/mine_btn2.png')
 
-                # 取消第二，第三英雄
-                time.sleep(0.3)
-                self.automator.adb.tap(650, 477)
-                time.sleep(0.1)
-                self.automator.adb.tap(950, 477)
+                self.remove_heros()
+                for i, hero in enumerate(co_mining_heros[temp_name]):
+                    order = i + 1
+                    self.change_hero(order=order, target=hero)
                 if self.automator.wait_and_click('templates/march.png'):
                     working_mines.append(temp_name)
                     result = f'成功采集盟矿: {temp_name}'
@@ -716,11 +742,7 @@ class WinterLess:
                 # 检查是否正确的采矿英雄
                 if self.automator.wait_for_image(f'templates/mine_{item}_hero.png', timeout=1):
                     # 移除多余的英雄
-                    self.automator.adb.tap(650, 477)
-                    time.sleep(0.1)
-                    self.automator.adb.tap(950, 477)
-                    # 点击出击
-                    time.sleep(0.1)
+                    self.remove_heros()
                     self.automator.adb.tap(828, 1821)
                     result = result + f' {item}'
                 else:
@@ -728,6 +750,34 @@ class WinterLess:
                     self.back_to_world()
         self.back_to_world()
         return result
+
+    @loop_timeout(timeout_seconds=30)
+    def change_hero(self, should_break, order: int, target: str):
+        x_aris = [300, 600, 900]
+        x = x_aris[order]
+        result = True
+        self.automator.adb.tap(x, 500)
+        path = f'templates/heros/{target}_small.png'
+        self.automator.adb.swipe(500, 1100, 500, 1800)
+        while not self.automator.wait_and_click(path):
+            self.automator.adb.swipe(500, 1150, 500, 900)
+            if should_break():
+                result = False
+                break
+        if not self.automator.wait_and_click('templates/hero_switch.png', timeout=1):
+            self.automator.wait_and_click('templates/hero_assign.png', timeout=1)
+        self.automator.wait_and_click('templates/close_popup1.png', scale_match=True)
+        return result
+
+    def remove_heros(self, remove_all: bool = False):
+        self.automator.wait_for_image('templates/group1.png')
+        if remove_all:
+            self.automator.adb.tap(350, 477)
+        else:
+            self.automator.adb.tap(650, 477)
+            time.sleep(0.1)
+            self.automator.adb.tap(950, 477)
+        time.sleep(0.1)
 
     def soldier_training(self):
         training_type = ['Archer', 'Spearman', 'Shielded']
@@ -830,7 +880,7 @@ class WinterLess:
         if pos2:
             self.automator.adb.tap(pos2[0], pos2[1])
             self.automator.wait_and_click('templates/OK_btn.png')
-            pos3 = self.automator.get_image_pos('templates/island_gain1.png', timeout=3, scale_match=True)
+            pos3 = self.automator.get_image_pos('templates/island_gain1.png', timeout=5, scale_match=True)
             if pos3:
                 self.automator.adb.tap(pos3[0], pos3[1])
                 result = '拜访邻居，获得收益。'
@@ -860,7 +910,7 @@ class WinterLess:
         self.back_to_world()
         return result
 
-    @loop_timeout(timeout_seconds=300)
+    @loop_timeout(timeout_seconds=450)
     def store_purchase(self, should_break):
         self.back_to_world()
         purchase_paths = {
@@ -898,16 +948,16 @@ class WinterLess:
             if purchase_list:
                 for value in purchase_list.values():
                     # 点击购买
-                    self.automator.adb.tap(value[0], value[1])
+                    self.automator.adb.tap(value[0], value[1], random_range=1)
                     i = i + 1
-                # time.sleep(0.1)
+                    time.sleep(0.2)
             else:
-                pos = self.automator.get_image_pos(refresh_btn)
-                if pos:
-                    self.automator.adb.tap(pos[0], pos[1])
-                    time.sleep(1)
+                # 点击不了刷新按钮可以退出
+                if self.automator.wait_and_click(refresh_btn, timeout=1):
+                    time.sleep(2)
                 else:
                     break
+                time.sleep(1)
         result = result + f'成功从游荡商人处采购{i}次'
         self.back_to_world()
         return result
@@ -927,8 +977,8 @@ class WinterLess:
             2: 'templates/weekly_coupon.png'
         }
         move_directions = {
-            1: (200, 211, 800, 220),
-            2: (800, 211, 200, 220)
+            1: (200, 211, 780, 220),
+            2: (780, 211, 200, 220)
         }
         self.back_to_world()
         self.automator.wait_and_click(event_list[event_type])
@@ -940,7 +990,7 @@ class WinterLess:
         x1, y1, x2, y2 = pos
         while not self.automator.wait_for_image(anchor_list1[event_type], timeout=0):
             self.automator.adb.swipe(x1, y1, x2, y2)
-            if should_break:
+            if should_break():
                 return False
         while not self.automator.wait_and_click(path, timeout=1):
             self.automator.adb.swipe(x2 - 169, y2, x1, y1)
@@ -1064,20 +1114,17 @@ class WinterLess:
 
             self.automator.adb.tap(540, 960)
             while not self.automator.wait_and_click('templates/demolish.png', timeout=1):
+                time.sleep(0.1)
                 if should_break():
                     break
             self.automator.wait_and_click('templates/OK_btn.png')
 
         # 处理附件队伍太多无法选中地面的问题
-        # TODO: 此处判定还不完善，可能被行军线路干扰
-        keep_try = True
-        while keep_try:
+        while not self.automator.wait_and_click('templates/build.png'):
             if should_break():
                 return "盟矿放置失败。"
             self.automator.adb.tap(540, 960)
             self.automator.wait_and_click('templates/select_ground.png', timeout=1)
-            if self.automator.wait_and_click('templates/build.png'):
-                keep_try = False
             time.sleep(1)
 
         self.automator.adb.tap(800, 200)
@@ -1170,18 +1217,41 @@ class WinterLess:
         self.back_to_world()
         return result
 
-    def deposit(self):
+    def deposit(self, period: int = 1):
+        period_locations = {
+            1: (281, 1290),
+            7: (788, 1290),
+            15: (281, 1797),
+            30: (788, 1797)
+        }
+        result = ''
         self.event_locate('templates/bank.png', event_type=2)
-        pos = self.automator.get_image_pos('templates/deposit.png')
+        # 检查存款是否到期
+        if self.automator.wait_for_image('templates/bank_started.png', timeout=1):
+            result = result + '银行正在使用中，请稍后再试。'
+            return result
+        # 取出存款
+        pos = self.automator.get_image_pos('templates/band_withdraw.png', timeout=1)
         if pos:
             x, y = pos
             self.automator.adb.tap(x, y)
             self.automator.wait_and_click('templates/intelligence_gain2.png', timeout=5)
-            time.sleep(2)
-            self.automator.adb.tap(x, y)
-            self.automator.adb.swipe(251, 1139, 600, 1139)
-            self.automator.wait_and_click('templates/saving.png')
+            result = result + '取出存款完成。'
+        # 没有充过值的，直接存30天
+        if self.automator.wait_for_image('templates/bank_unlock.png', timeout=1):
+            # 如果1天的没有解锁，直接点一个月周期
+            period = 30
+        # 等待存款按钮出现
+        self.automator.wait_for_image('templates/bank_deposit.png', timeout=3)
+        x, y = period_locations[period]
+        self.automator.adb.tap(x, y)
+        self.automator.adb.swipe(251, 1139, 600, 1139)
+        if self.automator.wait_and_click('templates/bank_saving.png', scale_match=True):
+            result = result + '银行存款完成。'
+        else:
+            result = result + '银行存款失败。'
         self.back_to_world()
+        return result
 
     def pet_treasure(self):
         result = ''
@@ -1210,20 +1280,21 @@ class WinterLess:
             final_list = final_list + junior
         for item in final_list:
             self.automator.adb.tap(item[0], item[1])
-            self.automator.wait_and_click('templates/treasure_search.png')
-            self.automator.wait_and_click('templates/treasure_search2.png')
+            self.automator.wait_and_click('templates/treasure_search.png', timeout=1)
+            self.automator.wait_and_click('templates/treasure_search2.png', timeout=0)
             time.sleep(0.3)
-            self.automator.adb.tap(961, 402)
+            # self.automator.adb.tap(961, 402)
+            self.automator.wait_and_click('templates/close_popup1.png', scale_match=True, timeout=1)
+            self.automator.wait_and_click('templates/close_popup1.png', scale_match=True, timeout=1)
 
         result = result + f'开始寻找{len(final_list)}个宝箱，其中{len(senior)}个高级宝箱，{len(medium)}个中级宝箱。'
 
-        '''
-        TODO: 此处应该加上标签切换功能和共享发现宝藏的功能
-        '''
-        if self.automator.wait_and_click('templates/pet_share.png', threshold=0.9):
-            self.automator.wait_and_click('templates/quick_gain_large.png')
+        # 点击联盟宝藏按钮，然后先分享，再获取盟友分享
+        self.automator.wait_and_click('templates/pet_share.png', threshold=0.9)
+        if self.automator.wait_and_click('templates/pet_share2.png'):
+            self.automator.adb.tap(782, 350)
+        if self.automator.wait_and_click('templates/quick_gain_large.png'):
             self.automator.wait_and_click('templates/intelligence_gain2.png')
-            self.automator.wait_and_click('templates/close_popup2.png')
         self.back_to_world()
         return result
 
@@ -1289,30 +1360,41 @@ class WinterLess:
 
         i = 0
         fight_info = ''
+        refresh_required = False
         while True:
             if should_break():
                 break
+            # 等待刷新按钮出现，防止数据读取错误
+            self.automator.wait_for_image('templates/refresh_arena.png', timeout=2)
             text = self.automator.get_screen_text(with_qwen3=True)
+            print(text)
             text = format_arena(text)
+            print(text)
             my_power = text.get('my_power_numeric', 0)
             time_left = text.get('remaining_challenges', 99)
 
             # 如果本身战力为0，继续循环
             if my_power == 0 or time_left == 99:
+                print('本身战力为0，继续循环')
                 continue
 
             if time_left == 0:
+                print('没有可挑战的对手，退出')
                 break
 
             # 找出五位玩家中战力最小的
             players = text['players']
             if len(players) != 5:
+                print('玩家数量不等于5，继续循环')
                 continue
             fight_index, fight_target = min(enumerate(players), key=lambda x: x[1]['combat_power_numeric'])
 
             # 如果战力差距过大，则刷新
-            if fight_target['combat_power_numeric'] + 2000000 > my_power:
+            if fight_target['combat_power_numeric'] + 2000000 > my_power or refresh_required:
+                print('战力差距过大，正在刷新...')
                 if self.automator.wait_and_click('templates/refresh_arena.png', threshold=0.9):
+                    print('刷新成功')
+                    refresh_required = False
                     continue
 
             # 能够战斗的开打~
@@ -1323,8 +1405,10 @@ class WinterLess:
             self.automator.wait_for_image("templates/arena_battle_record.png")
             if self.automator.wait_for_image("templates/arena_win.png", timeout=time_out):
                 fight_info = fight_info + f'击败了{player_name}, 战力{player_power}。'
+                refresh_required = False
             else:
                 fight_info = fight_info + f'惜败于{player_name}, 战力{player_power}。'
+                refresh_required = True
 
             # 返回挑战列表
             self.automator.adb.tap(500, 1890)
@@ -1404,6 +1488,85 @@ class WinterLess:
             self.automator.wait_and_click('templates/claim3.png')
             result = result + self.monster_hunter(target_type=1, stop_value=180)
         return result
+
+    def recall_all_troops(self):
+        if not self.is_bear_day():
+            return '非巨熊行动日，不召回部队。'
+        self.back_to_world()
+        continue_retreat = True
+        i = 0
+        while continue_retreat:
+            pos = self.automator.get_image_pos('templates/retreat.png')
+            if pos:
+                self.automator.adb.tap(pos[0], pos[1])
+                self.automator.wait_and_click('templates/OK_btn.png')
+                i = i + 1
+            else:
+                continue_retreat = False
+        return f'召回了{i}支队伍'
+
+    def enable_pet_fight_buff(self):
+        if not self.is_bear_day():
+            return '非巨熊行动日，不开启宠物加成。'
+        self.back_to_world()
+        result = ''
+        if self.automator.wait_for_image('templates/pet_fight_check.png', timeout=5):
+            result = result + '宠物加成已开启'
+            return True
+        if self.automator.wait_and_click('templates/pet_anchor.png', timeout=1):
+            self.automator.wait_and_click('templates/pet_fight.png', timeout=1)
+            self.automator.wait_and_click('templates/pet_skill_butch.png', timeout=1)
+            if self.automator.wait_and_click('templates/pet_quick_use_confirm.png', timeout=1):
+                result = result + '成功开启宠物加成'
+            else:
+                result = result + '宠物加成开启失败'
+        self.back_to_world()
+        return result
+
+    def swap_hero_arm(self, swap_list: dict):
+        if not self.is_bear_day():
+            return '非巨熊行动日，不更换英雄装备。'
+        for value in swap_list.values():
+            source = value[0]
+            target = value[1]
+            self.get_on_off_hero_arms(source, 'off')
+            self.get_on_off_hero_arms(target, 'on')
+
+    @loop_timeout(timeout_seconds=30)
+    def get_on_off_hero_arms(self, should_break, hero_name, operation='on'):
+        path = f'templates/heros/{hero_name}_large.png'
+        self.back_to_world()
+        self.automator.wait_and_click('templates/2.hero.png')
+        while not self.automator.wait_and_click(path):
+            if should_break():
+                return False
+            self.automator.adb.swipe(500, 850, 500, 300)
+        self.automator.wait_and_click('templates/hero_arms.png')
+        self.automator.wait_and_click(f'templates/hero_arms_get_{operation}.png')
+        self.back_to_world()
+        return True
+
+    def is_bear_day(self):
+        self.event_locate(path='templates/bear_btn.png')
+        text = self.automator.get_screen_text((380, 1600, 700, 1700))
+        text = re.sub(r'\s+', ' ', text.strip())
+        if "预约自动开启" not in text:
+            print('没有预约巨熊，请联系管理员提前预约')
+            return False
+
+        date_match = re.search(r'(\d{4}-\d{1,2}-\d{1,2})', text)
+        if date_match:
+            date_str = date_match.group(1)
+            current_time = time.localtime()
+            current_date = f'{current_time.tm_year}-{current_time.tm_mon:02d}-{current_time.tm_mday:02d}'
+            if current_date == date_str:
+                return True
+        return False
+
+    def bear_hunting(self):
+        self.back_to_world()
+        bear.main(self.automator.mumu_device)
+        pass
 
     def is_ready(self):
         return self.automator.is_ready()

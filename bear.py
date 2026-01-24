@@ -107,6 +107,7 @@ class BearHunting:
         if position:
             x, y = position
             self.adb.tap(x, y)
+            return True
         else:
             return False
 
@@ -199,25 +200,27 @@ class BearHunting:
             self.adb.tap(pos[0], pos[1])
         else:
             print('找不到熊标，跳过开车')
-            fail_time = time.time() - 350
-            return fail_time
+            return False
 
         # 点击集结按钮
-        time.sleep(0.2)
-        self.adb.tap(691, 1542)
+        # “前往熊坑”功能取消，改在这里等待集结按钮出现
+        self.wait_and_click('templates/bear_assemble.png', timeout=10)
         time.sleep(0.1)
         # 点击集结确认
-        self.adb.tap(540, 1221)
-        time.sleep(0.1)
-        # 选择一队
-        self.adb.tap(100, 184)
-        time.sleep(0.1)
-        # 出发
-        self.adb.tap(828, 1821)
-        assemble_time = time.time()
-        time.sleep(0.1)
-        time_str = time.strftime("%H:%M:%S", time.localtime(time.time()))
-        print(f'{time_str}:\t集结开车......')
+        if self.wait_and_click('templates/bear_assemble2.png', timeout=1):
+            # 选择队伍（默认选择第一队）
+            self.wait_and_click('templates/group1.png', timeout=1)
+            time.sleep(0.1)
+            # 出发
+            self.adb.tap(828, 1821)
+            current_time = time.time()
+            time.sleep(0.1)
+            time_str = time.strftime("%H:%M:%S", time.localtime(time.time()))
+            print(f'{time_str}:\t集结开车......')
+            return current_time
+        else:
+            time_str = time.strftime("%H:%M:%S", time.localtime(time.time()))
+            print(f'{time_str}:\t集结失败')
 
         # 点进集结
         self.adb.tap(998, 813)
@@ -225,8 +228,6 @@ class BearHunting:
 
         for _ in range(7):
             self.adb.swipe(540, 1600, 540, 300, duration=300)
-
-        return assemble_time
 
     def back_to_world(self):
         world_icons = {
@@ -254,12 +255,9 @@ class BearHunting:
             self.adb.back()
 
 
-def main():
-    parser = argparse.ArgumentParser(description='Bear Hunting')
-    parser.add_argument('deviceid', type=int, help='Mumu模拟器的编号')
-    args = parser.parse_args()
-    device_id = args.deviceid
+def main(device_id: int):
 
+    start_time = time.time()
     templates_path = {}
     troop_paths = {
         'ratio': 'templates/troop_ratio.png',
@@ -269,17 +267,6 @@ def main():
     }
 
     assemble_interval = 350
-    hour = [(19, 30), (19, 30), (21, 0)]
-
-    # 判断是否到达开始时间
-    now = time.time()
-    now_struct = time.localtime(now)
-    target_struct = time.struct_time((
-        now_struct.tm_year, now_struct.tm_mon, now_struct.tm_mday,
-        hour[device_id][0], hour[device_id][1], 0,
-        now_struct.tm_wday, now_struct.tm_yday, now_struct.tm_isdst
-    ))
-    target = time.mktime(target_struct)
 
     target_counter = len(target_players[device_id])
     for i in range(target_counter):
@@ -294,55 +281,20 @@ def main():
 
     automator = BearHunting(template_paths=templates_path, troop_paths=troop_paths, device_id=device_id)
 
-    run_reset = False
-
-    # 准备打熊
-    while True:
-        timestamp = time.time()
-        if target - timestamp < 0:
-            break
-        if target - timestamp < 30:
-            if run_reset:
-                continue
-            print('熊坑归位！！！')
-            automator.adb.tap(1080 / 2, 1920 / 2)
-            if automator.get_image_pos('templates/bear_anchor.png', timeout=1):
-                automator.adb.back()
-                continue
-            # 前往熊坑
-            automator.adb.tap(804, 1853)
-            time.sleep(0.5)
-            automator.adb.tap(284, 1201)
-            time.sleep(0.5)
-            automator.adb.tap(764, 178)
-            time.sleep(0.5)
-            automator.adb.tap(885, 538)
-            run_reset = True
-        elif target - timestamp < 60 * 5:
-            # 拉回部队
-            print('5分钟后开始打熊，拉回所有队伍')
-            pos = automator.get_image_pos('templates/retreat.png')
-            if pos:
-                automator.adb.tap(pos[0], pos[1])
-                time.sleep(0.2)
-                automator.adb.tap(769, 1181)
-                time.sleep(0.2)
-        elif target - timestamp < 60 * 15:
-            print('请开宠物，换装备！请开宠物，换装备！请开宠物，换装备！')
-            automator.enable_pet()
-            time.sleep(1)
-        else:
-            print(f'距开始还有{int((target - timestamp)//60)}分钟。')
-            time.sleep(60)
-
     assemble_time = 0
     while True:
         new_time = time.time()
+        if new_time - start_time >= 60 * 25:
+            print('自动开车、上车时间结束，程序将自动退出，有需要请手动操作。')
+            break
         # 每10秒刷动一次
         if new_time - assemble_time >= assemble_interval:
+            # assemble_time > 0 意味着之前已经进行过集结，必须回退一次到主界面
             if assemble_time > 0:
                 automator.adb.back()
             assemble_time = automator.bear_assemble()
+            if not assemble_time:
+                return '集结失败，程序将自动退出，有需要请手动操作。'
         elif int(new_time % 60) % 15 == 0:
             automator.adb.swipe(540, 1600, 540, 300, duration=300)
             time.sleep(0.2)
@@ -357,13 +309,14 @@ def main():
             # 序号为int，代表有刷到玩家，处理后马上中断当前轮回
             if isinstance(key, int):
                 name = target_players[device_id][key]
+                # 如果5分钟内加入过该玩家，跳过
                 last_joined = automator.joined_time.get(name, 0)
                 if new_time - last_joined <= 60 * 5:
                     continue
-
                 troop_id = key % 4
                 y = value[1] + 171
                 automator.bear_joining(target=name, troop_id=troop_id, target_y=y)
+                # 这里是否要中断当前轮回？有没有可能同一界面有多个可加入玩家？
                 break
             # 如果没有匹配到玩家，而且还处于队伍列表，马上中断当前轮回
             elif key == 'war':
@@ -382,4 +335,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('deviceid', type=int, help='Mumu模拟器的编号')
+    args = parser.parse_args()
+    main(args.deviceid)
+
