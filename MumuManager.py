@@ -140,9 +140,31 @@ class ADBController:
             if self.device_id not in list(devices.keys()):
                 raise Exception(f"指定设备 {self.device_id} 未连接或不可用")
 
+        if not devices[self.device_id]['state']:
+            self._launch_mumu()
+
         self.device_name = devices[self.device_id]['name']
 
         print(f"已选择设备: {self.device_name}")
+
+    def _shutdown_mumu(self):
+        try:
+            mmm_stop = self.mmm_path + ['control', '-v', self.str_device_id, 'shutdown']
+            subprocess.run(mmm_stop, check=True, capture_output=True, text=True)
+        except subprocess.CalledProcessError:
+            print(f"设备 {self.str_device_id} 已停止或不存在")
+
+    def _launch_mumu(self):
+        started = False
+        try:
+            mmm_launch = self.mmm_path + ['control', '-v', self.str_device_id, 'launch']
+            subprocess.run(mmm_launch, check=True, capture_output=True, text=True)
+            while not started:
+                devices = self.get_all_devices_info()
+                started = devices[self.device_id]['state']
+                time.sleep(1)
+        except subprocess.CalledProcessError:
+            print(f"设备 {self.str_device_id} 已启动或不存在")
 
     def _get_adb_command(self, command, include_device=True):
         """构建ADB命令，自动添加设备ID"""
@@ -309,7 +331,7 @@ class ADBController:
         try:
             # 使用更可靠的方法获取当前应用
             cmd = self._get_adb_command(['shell', 'dumpsys', 'window', 'windows'])
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
 
             # 查找当前焦点窗口
             for line in result.stdout.split('\n'):
@@ -351,8 +373,13 @@ class ADBController:
 
     def launch_app(self, package_name):
         """启动指定应用"""
-        cmd = self._get_adb_command(
-            ['shell', 'monkey', '-p', package_name, '-c', 'android.intent.category.LAUNCHER', '1'])
+        devices = self.get_all_devices_info()
+        if devices[self.device_id]['state']:
+            cmd = self._get_adb_command(
+                ['shell', 'monkey', '-p', package_name, '-c', 'android.intent.category.LAUNCHER', '1'])
+        else:
+            cmd = self.mmm_path + ['control', '-v', self.str_device_id, 'launch',
+                                   '-pkg', package_name]
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode == 0:
             print(f"已启动应用: {package_name}")
@@ -495,7 +522,6 @@ class MumuGameAutomator:
         else:
             value = self.ocr.extract_text(screenshot, preprocess=preprocess, region=region, with_qwen3=with_qwen3)
 
-
         return value
 
     def start_game(self):
@@ -543,8 +569,7 @@ class MumuGameAutomator:
         start_time = time.time()
         template = self.image_matcher.load_template(template_path)
 
-        while time.time() - start_time + 0.1 < timeout:
-
+        while timeout >= 0 and time.time() - start_time - 0.1 < timeout:
             time.sleep(1)
             screenshot = self.adb.screenshot()
             position = self.image_matcher.find_template(screenshot, template, threshold,
@@ -602,7 +627,7 @@ class MumuGameAutomator:
         template = self.image_matcher.load_template(template_path)
 
         # 此处减去0.1是为了当timeout为0时，也能执行一次
-        while time.time() - start_time - 0.1 < timeout:
+        while timeout >= 0 and time.time() - start_time - 0.1 < timeout:
             screenshot = self.adb.screenshot()
             positions = self.image_matcher.find_all_templates(screenshot, template, threshold)
 
@@ -726,6 +751,10 @@ class MumuGameAutomator:
                 return state_name
 
         return None
+
+    def get_device_info(self):
+        devices = self.adb.get_all_devices_info()
+        return devices[self.mumu_device]
 
     # TaskManager要调用的参数
     def is_ready(self):
