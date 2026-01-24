@@ -134,17 +134,25 @@ class IntelligenceDeal:
             self.automator.wait_and_click('templates/intelligence_btn.png', threshold=0.92, timeout=1)
 
             positions = self.automator.multiple_images_pos(self.paths, threshold=0.8)
+            positions = {k: v for k, v in positions.items() if v is not None}
 
-            i = 0
-
+            # 去除空值后dict为空，则说明没有任务了，跳出循环
+            if not positions:
+                print("No more intelligence tasks")
+                terminate = True
+            # 找出最小的key，意味着最小的体力要求，如果当前体力小于等于该key对应的体力要求，则跳出循环
+            minimum_key = min(positions.keys())
             for key, value in positions.items():
-                if value is None or strength < self.required_strength[key]:
-                    i = i + 1
-                    if i == len(positions):
+                if strength < self.required_strength[key]:
+                    if key == minimum_key:
+                        print("Not enough strength for intelligence task")
                         terminate = True
+                        break
                     continue
+
                 if (key == 0 or key == 1) and time.time() - wait_time < 0:
                     continue
+
                 # 点击查看图标
                 if key == 4:
                     time.sleep(0.5)
