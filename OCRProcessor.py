@@ -2,7 +2,6 @@ import numpy as np
 import cv2
 import re
 import base64
-import ollama
 import requests
 from PIL import Image
 from io import BytesIO
@@ -132,13 +131,14 @@ class OCRProcessor:
 
     @staticmethod
     def extract_text_qwen3(image_base64) -> str:
-        prompt = """请直接提取图片中的所有文字内容。要求：
-        1. 直接输出文字，不要有任何解释、分析或思考过程
-        2. 保持文字原有的顺序和格式
-        3. 如果是多行文字，按行输出
-        4. 如果有不同区域的文字，用空行分隔
+        prompt = """请详细描述这张图片中的文字内容。
+        要求：
+        1. 列出所有可见文字
+        2. 保持原顺序
+        3. 不要解释、不要推理、不要思考
+        4. 文字之间用换行分隔
         
-        图片文字内容："""
+        请以清晰、有条理的方式输出，直接描述文字内容。"""
 
         payload = {
             "model": "qwen3-vl",
