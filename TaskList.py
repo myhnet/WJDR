@@ -229,7 +229,8 @@ class WinterLess:
             0: 'templates/attacked.png',
             1: 'templates/redpack1.png',
             2: 'templates/soldier_cure.png',
-            3: 'templates/garrison.png'
+            3: 'templates/garrison.png',
+            4: 'templates/island_visit.png'
         }
         games_status = self.automator.multiple_images_pos(world_icons)
         for key, value in games_status.items():
@@ -249,11 +250,12 @@ class WinterLess:
                     time.sleep(0.1)
                     self.automator.adb.tap(pos[0], pos[1])
             elif key == 3:
-                x, y = value
                 x = x + 227
                 y = y + 15
                 self.automator.adb.tap(x, y)
                 self.automator.wait_and_click('templates/OK_btn.png')
+            elif key == 4:
+                self.island_visit(x, y)
             break
 
         # 点击联盟互助
@@ -871,20 +873,18 @@ class WinterLess:
         return result
 
     # 晨曦岛操作
+    def island_visit(self, x: int, y: int):
+        # 拜访邻居
+        self.automator.adb.tap(x, y)
+        self.automator.wait_and_click('templates/OK_btn.png')
+        if self.automator.wait_and_click('templates/island_gain1.png', timeout=5, scale_match=True):
+            result = '拜访邻居，获得收益。'
+        self.back_to_world()
+
     @loop_timeout(timeout_seconds=300)
     def island_gain(self, should_break):
         result = ''
         self.back_to_my_town()
-        # 拜访邻居
-        pos2 = self.automator.get_image_pos('templates/island_visit.png', scale_match=True)
-        if pos2:
-            self.automator.adb.tap(pos2[0], pos2[1])
-            self.automator.wait_and_click('templates/OK_btn.png')
-            pos3 = self.automator.get_image_pos('templates/island_gain1.png', timeout=5, scale_match=True)
-            if pos3:
-                self.automator.adb.tap(pos3[0], pos3[1])
-                result = '拜访邻居，获得收益。'
-            self.back_to_world()
 
         self.automator.adb.tap(540, 960)
         if not self.automator.wait_and_click('templates/island_enter.png'):
