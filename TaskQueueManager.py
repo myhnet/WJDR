@@ -9,9 +9,7 @@ from datetime import datetime, timedelta, time as dt_time
 from enum import Enum
 from typing import Callable, Dict, Any, Optional, List, Union
 
-# 导入您的MumuGameAutomator类
-from MumuManager import MumuGameAutomator
-from TaskList import WinterLess
+from TaskList import TaskList
 
 
 class TaskStatus(Enum):
@@ -163,7 +161,7 @@ class Task:
                     # 步长语法：起始/步长 或 范围/步长
                     left, step_str = part.split("/", 1)
                     step = int(step_str)
-                    
+
                     if left == "*":
                         # */5 - 从最小值开始
                         start = min_val
@@ -177,7 +175,7 @@ class Task:
                         # 1/2 - 从指定值开始
                         start = int(left)
                         end = max_val
-                    
+
                     # 生成步长序列
                     result.extend(range(start, end + 1, step))
                 elif "-" in part:
@@ -256,6 +254,7 @@ class Task:
 
 class TaskCallback:
     """任务回调处理器"""
+
     def __init__(self, task_owner):
         self.task_owner = task_owner
 
@@ -280,15 +279,9 @@ class TaskCallback:
 class GameTaskManager:
     """游戏任务队列管理器"""
 
-    def __init__(self, automator: WinterLess, name: str = "GameTaskManager"):
-        """
-        初始化任务管理器
+    def __init__(self, tasklist: TaskList, name: str = "GameTaskManager"):
 
-        Args:
-            automator: MumuGameAutomator实例
-            name: 管理器名称
-        """
-        self.automator = automator
+        self.tasklist = tasklist
         self.name = name
 
         # 任务存储
@@ -299,6 +292,7 @@ class GameTaskManager:
         # 执行状态
         self.running_task: Optional[Task] = None
         self.history = deque(maxlen=1000)  # 执行历史
+        self.error_pause = False
 
         # 控制
         self.lock = threading.RLock()
@@ -553,6 +547,11 @@ class GameTaskManager:
                 return True
             return False
 
+    def enable_all_task(self):
+        with self.lock:
+            for task in self.tasks:
+                self.tasks[task].enabled = True
+
     def update_task_schedule(self, task_id: str, **kwargs) -> bool:
         """更新任务调度设置"""
         with self.lock:
@@ -606,7 +605,7 @@ class GameTaskManager:
             return True, "任务未启用"
 
         # 检查游戏状态（在检查运行任务之前）
-        if task.requires_game and not self.automator.is_ready():
+        if task.requires_game and not self.tasklist.is_ready():
             return True, "游戏未就绪"
 
         # 有任务正在运行
@@ -632,7 +631,7 @@ class GameTaskManager:
             self.callbacks.on_task_start(task)
 
             # 执行任务函数
-            result = task.func(self.automator)
+            result = task.func(self.tasklist)
 
             # 计算执行时间
             execution_time = (datetime.now() - task_start_time).total_seconds()
@@ -651,7 +650,8 @@ class GameTaskManager:
             self.callbacks.on_task_complete(task, result)
 
             if task.is_long_interval:
-                print(f"{datetime.now().isoformat()}[{self.name}] ✓ 任务完成: {task.name}, 耗时: {execution_time:.2f}秒")
+                print(
+                    f"{datetime.now().isoformat()}[{self.name}] ✓ 任务完成: {task.name}, 耗时: {execution_time:.2f}秒")
 
         except Exception as e:
             # 计算执行时间
@@ -748,7 +748,7 @@ class GameTaskManager:
 
                     # 检查是否可以执行此任务
                     should_skip, reason = self._should_skip_task(task)
-                    
+
                     if should_skip and reason != "长间隔任务排队":  # 如果不是因为排队原因导致的跳过
                         # 如果是因为游戏未就绪或其他原因跳过，放回等待队列末尾
                         self.waiting_queue.append(task)
@@ -773,7 +773,7 @@ class GameTaskManager:
                 self._cleanup_counter += 1
             else:
                 self._cleanup_counter = 1
-            
+
             if self._cleanup_counter % 100 == 0:  # 每100次循环执行一次清理
                 cleaned = self.cleanup_tasks()
                 if cleaned > 0:
@@ -848,7 +848,7 @@ class GameTaskManager:
         with self.lock:
             cleaned_count = 0
             valid_tasks = []
-            
+
             for task in self.task_queue:
                 # 检查任务是否有效
                 if task.task_id in self.tasks:
@@ -857,11 +857,11 @@ class GameTaskManager:
                     # 从队列中移除已不存在的任务
                     cleaned_count += 1
                     print(f"[{self.name}] 清理无效任务: {task.name} (ID: {task.task_id})")
-            
+
             # 重建队列
             self.task_queue = valid_tasks
             heapq.heapify(self.task_queue)
-            
+
             return cleaned_count
 
     # ==================== 控制方法 ====================
@@ -940,18 +940,28 @@ class GameTaskManager:
         while not self.stop_event.is_set():
             try:
                 # 获取游戏状态
-                status = self.automator.get_status()
+                status = self.tasklist.get_status()
 
                 # 游戏状态变化处理
                 if not status["is_running"] and self.running_task:
                     # 游戏意外关闭，停止当前任务
+                    self.pause()
+                    self.error_pause = True
+                    self.tasklist.restart_game()
                     print(f"[{self.name}] 警告: 游戏意外关闭")
 
                 # 更新统计
                 self.stats["last_update"] = datetime.now()
+                if self.error_pause:
+                    self.resume()
+                    self.error_pause = False
+                    self.enable_all_task()
 
             except Exception as e:
                 print(f"[{self.name}] 游戏监控错误: {e}")
+                self.pause()
+                self.error_pause = True
+                self.tasklist.restart_game(force_restart=True)
 
             # 等待下次检查
             time.sleep(self.game_check_interval)
@@ -1011,7 +1021,8 @@ class GameTaskManager:
 
             return upcoming
 
-    def _format_runtime(self, seconds: float) -> str:
+    @staticmethod
+    def _format_runtime(seconds: float) -> str:
         """格式化运行时间"""
         hours = int(seconds // 3600)
         minutes = int((seconds % 3600) // 60)
@@ -1021,59 +1032,7 @@ class GameTaskManager:
 
 # ==================== 使用示例 ====================
 def example_usage():
-    """使用示例"""
-    # 创建虚拟的automator
-    automator = MumuGameAutomator()
-    manager = GameTaskManager(automator, "示例管理器")
-
-    # 定义一些示例任务函数
-    def daily_check():
-        return "检查完成"
-
-    def weekly_backup():
-        print("执行每周备份...")
-        return "备份完成"
-
-    def cleanup_task():
-        print("执行清理任务...")
-        return "清理完成"
-
-    # 添加定时任务
-    # 1. 每天4点执行的任务
-    manager.add_4am_task("每日4点检查", daily_check)
-
-    # 2. 每天早上9点执行
-    manager.add_daily_task("早上9点任务", daily_check, "09:00")
-
-    # 3. 每周一、三、五的14:30执行
-    manager.add_weekly_task("周任务", weekly_backup, "14:30", weekdays=[0, 2, 4])
-
-    # 4. 使用cron表达式：每天0点执行
-    manager.add_cron_task("午夜任务", cleanup_task, "0 0 * * *")
-
-    # 5. 传统的间隔任务
-    manager.add_task("间隔任务", cleanup_task, interval_seconds=300)
-
-    # 启动管理器
-    manager.start()
-
-    # 运行一段时间后停止
-    import time
-    time.sleep(10)
-
-    # 查看任务列表
-    tasks = manager.list_tasks()
-    for task in tasks:
-        print(f"任务: {task['name']}, 下次执行: {task['next_run']}")
-
-    # 查看即将执行的任务
-    upcoming = manager.get_upcoming_tasks(5)
-    print(f"\n即将执行的任务:")
-    for task in upcoming:
-        print(f"  {task['name']}: {task['next_run']} ({task['seconds_until']:.0f}秒后)")
-
-    # 停止管理器
-    manager.stop()
+    pass
 
 
 if __name__ == "__main__":

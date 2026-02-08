@@ -141,20 +141,20 @@ class ADBController:
                 raise Exception(f"指定设备 {self.device_id} 未连接或不可用")
 
         if not devices[self.device_id]['state']:
-            self._launch_mumu()
+            self.launch_mumu()
 
         self.device_name = devices[self.device_id]['name']
 
         print(f"已选择设备: {self.device_name}")
 
-    def _shutdown_mumu(self):
+    def shutdown_mumu(self):
         try:
             mmm_stop = self.mmm_path + ['control', '-v', self.str_device_id, 'shutdown']
             subprocess.run(mmm_stop, check=True, capture_output=True, text=True)
         except subprocess.CalledProcessError:
             print(f"设备 {self.str_device_id} 已停止或不存在")
 
-    def _launch_mumu(self):
+    def launch_mumu(self):
         started = False
         try:
             mmm_launch = self.mmm_path + ['control', '-v', self.str_device_id, 'launch']
@@ -175,18 +175,9 @@ class ADBController:
             command = self.mmm_path + ['adb', '-v', '0', '-c'] + command
             return command
 
-    def tap(self, x, y, random_range: int = 3):
-        if random_range >= 0:
-            i = random_range
-            j = 0 - random_range
-        else:
-            i = 0 - random_range
-            j = random_range
-        x = x + random.randint(j, i)
-        y = y + random.randint(j, i)
+    def tap(self, x, y):
         cmd = self._get_adb_command(['shell', 'input', 'tap', str(x), str(y)])
         subprocess.run(cmd)
-        time.sleep(0.1)
 
     def screenshot(self):
         """获取屏幕截图，返回numpy数组格式的图像"""
@@ -493,6 +484,7 @@ class MumuGameAutomator:
         try:
             # 连接Mumu模拟器
             self.adb = ADBController(device_id=self.mumu_device, mmm_path=self.mmm_path)
+            self.device_name = self.adb.device_name
         except subprocess.CalledProcessError:
             raise Exception("ADB命令执行失败，请检查ADB是否正确安装")
 
@@ -514,7 +506,7 @@ class MumuGameAutomator:
                         numbers: bool = False, preprocess: bool = True, with_qwen3: bool = True) -> str:
 
         value = None
-        screenshot = self.adb.screenshot()
+        screenshot = self.get_screenshot()
         # return self.ocr.extract_text(screenshot, preprocess=preprocess, region=region)
         if numbers:
             value = self.ocr.extract_numbers(screenshot, preprocess=preprocess,
@@ -548,20 +540,33 @@ class MumuGameAutomator:
         print("游戏启动失败")
         return False
 
-    def stop_game(self):
+    def stop_game(self, force_restart=False):
         """停止游戏"""
         if not self.game_package:
             return False
 
         self.adb.force_stop_app(self.game_package)
+        if force_restart:
+            self.adb.shutdown_mumu()
         print(f"已停止游戏: {self.game_package}")
         return True
 
-    def restart_game(self):
+    def restart_game(self, force_restart=False):
         """重启游戏"""
-        self.stop_game()
+        self.stop_game(force_restart)
         time.sleep(2)
         return self.start_game()
+
+    def load_file(self, file_path: str):
+        return self.image_matcher.load_template(file_path)
+
+    def get_image_pos_from_ram(self, target: np.ndarray, template: np.ndarray, threshold: float = 0.8,
+                               scale_match: bool = False, scale_range: tuple = (0.5, 2.0)):
+        position = self.image_matcher.find_template(target, template, threshold,
+                                                    scale_match=scale_match, scale_range=scale_range)
+        if position:
+            x, y = position
+            return x, y
 
     def get_image_pos(self, template_path: str, timeout: int = 3, threshold: float = 0.8,
                       offset_x: int = 0, offset_y: int = 0, scale_match: bool = False, scale_range: tuple = (0.5, 2.0)):
@@ -571,9 +576,9 @@ class MumuGameAutomator:
 
         while timeout >= 0 and time.time() - start_time - 0.1 < timeout:
             time.sleep(1)
-            screenshot = self.adb.screenshot()
-            position = self.image_matcher.find_template(screenshot, template, threshold,
-                                                        scale_match=scale_match, scale_range=scale_range)
+            screenshot = self.get_screenshot()
+            position = self.get_image_pos_from_ram(screenshot, template, threshold,
+                                                   scale_match=scale_match, scale_range=scale_range)
 
             if position:
                 x, y = position
@@ -604,7 +609,12 @@ class MumuGameAutomator:
         while timeout > 0 and time.time() - start_time < timeout:
             time.sleep(1)
 
-        screenshot = self.adb.screenshot()
+        screenshot = self.get_screenshot()
+        result = self.multiple_images_pos_from_raw(screenshot, templates, threshold)
+        return result
+
+    def multiple_images_pos_from_raw(self, target: np.ndarray, templates: dict, threshold: float = 0.8):
+        screenshot = target
         template_keys = list(templates.keys())
         template_values = list(templates.values())
         with ThreadPoolExecutor(max_workers=9) as executor:
@@ -612,12 +622,8 @@ class MumuGameAutomator:
                 lambda template: self.image_matcher.find_template(screenshot, template, threshold),
                 template_values
             ))
-        if result:
-            result = dict(zip(template_keys, result))
-            return result
-
-        # print(f"超时: 未找到图像 {template_path}")
-        return False
+        result = dict(zip(template_keys, result))
+        return result
 
     # 同时查找一个图片的多个位置
     def get_images_pos(self, template_path: str, timeout: int = 10,
@@ -628,7 +634,7 @@ class MumuGameAutomator:
 
         # 此处减去0.1是为了当timeout为0时，也能执行一次
         while timeout >= 0 and time.time() - start_time - 0.1 < timeout:
-            screenshot = self.adb.screenshot()
+            screenshot = self.get_screenshot()
             positions = self.image_matcher.find_all_templates(screenshot, template, threshold)
 
             if positions:
@@ -658,7 +664,7 @@ class MumuGameAutomator:
             else:
 
                 # print(f"找到图像位置: ({x}, {y})， 点击")
-                self.adb.tap(x, y)
+                self.tap(x, y)
             return True
         else:
             return False
@@ -679,12 +685,12 @@ class MumuGameAutomator:
             x += offset_x
             y += offset_y
             # print(f"点击图像: {template_path} 位置: ({x}, {y})")
-            self.adb.tap(x, y)
+            self.tap(x, y)
             return True
         else:
             return False
 
-    def wait_for_image(self, template_path: str, timeout: int = 30,
+    def wait_for_image(self, template_path: str, timeout: int = 3,
                        threshold: float = 0.8) -> bool:
         position = self.get_image_pos(template_path=template_path, threshold=threshold,
                                       timeout=timeout)
@@ -692,6 +698,24 @@ class MumuGameAutomator:
             return True
         else:
             return False
+
+    def get_screenshot(self):
+        return self.adb.screenshot()
+
+    def back(self):
+        self.adb.back()
+
+    def tap(self, x: int, y: int, random_range: int = 3):
+        if random_range >= 0:
+            i = random_range
+            j = 0 - random_range
+        else:
+            i = 0 - random_range
+            j = random_range
+        x = x + random.randint(j, i)
+        y = y + random.randint(j, i)
+        self.adb.tap(x, y)
+        time.sleep(0.1)
 
     def tap_random_area(self, x1: int, y1: int, x2: int, y2: int):
         """
@@ -704,7 +728,10 @@ class MumuGameAutomator:
         x = random.randint(x1, x2)
         y = random.randint(y1, y2)
         # print(f"随机点击: ({x}, {y})")
-        self.adb.tap(x, y)
+        self.tap(x, y)
+
+    def swipe(self, start_x: int, start_y: int, end_x: int, end_y: int, duration: int = 500):
+        self.adb.swipe(start_x, start_y, end_x, end_y, duration)
 
     def swipe_random(self, start_x1: int, start_y1: int, start_x2: int, start_y2: int,
                      end_x1: int, end_y1: int, end_x2: int, end_y2: int,
@@ -716,7 +743,7 @@ class MumuGameAutomator:
         end_y = random.randint(end_y1, end_y2)
 
         # print(f"滑动: ({start_x}, {start_y}) -> ({end_x}, {end_y})")
-        self.adb.swipe(start_x, start_y, end_x, end_y, duration)
+        self.swipe(start_x, start_y, end_x, end_y, duration)
 
     def save_current_screen(self, filename: str = None):
         """保存当前屏幕截图"""
@@ -724,7 +751,7 @@ class MumuGameAutomator:
             timestamp = time.strftime("%Y%m%d_%H%M%S")
             filename = f"screenshot_{timestamp}.png"
 
-        screenshot = self.adb.screenshot()
+        screenshot = self.get_screenshot()
         self.image_matcher.save_screenshot(screenshot, filename)
         print(f"截图已保存: {filename}")
         return filename
@@ -741,7 +768,7 @@ class MumuGameAutomator:
         Returns:
             状态名或None
         """
-        screenshot = self.adb.screenshot()
+        screenshot = self.get_screenshot()
 
         for state_name, template_path in state_templates.items():
             template = self.image_matcher.load_template(template_path)
@@ -785,7 +812,7 @@ class MumuGameAutomator:
 
             try:
                 if action_type == 'tap':
-                    self.adb.tap(action['x'], action['y'])
+                    self.tap(action['x'], action['y'])
 
                 elif action_type == 'wait_and_click':
                     self.wait_and_click(action['template'], timeout=action.get('timeout', 30),
@@ -793,7 +820,7 @@ class MumuGameAutomator:
                                         offset_y=action.get('offset_y', 0))
 
                 elif action_type == 'swipe':
-                    self.adb.swipe(
+                    self.swipe(
                         action['start_x'], action['start_y'],
                         action['end_x'], action['end_y'],
                         action.get('duration', 500)
