@@ -1,0 +1,219 @@
+{
+  "城镇内": {
+    "练兵": {
+      "func_name": "soldier_training",
+      "schedule_type": "INTERVAL",
+      "interval_seconds": 1800,
+      "immediate": true,
+      "requires_game": true
+    },
+    "仓库收益1": {
+      "func_name": "warehouse_reward",
+      "schedule_type": "CRON",
+      "cron_expression": "*/5 0-2 * * *",
+      "requires_game": true
+    },
+    "仓库收益2": {
+      "func_name": "warehouse_reward",
+      "schedule_type": "CRON",
+      "cron_expression": "*/30 3-4 * * *",
+      "requires_game": true
+    },
+    "仓库收益3": {
+      "func_name": "warehouse_reward",
+      "schedule_type": "CRON",
+      "cron_expression": "59 5-23 * * *",
+      "requires_game": true
+    },
+    "探险收益": {
+      "func_name": "adventure_gains",
+      "schedule_type": "CRON",
+      "cron_expression": "40 */8 * * *",
+      "requires_game": true
+    },
+    "宠物寻宝": {
+      "func_name": "pet_treasure",
+      "schedule_type": "CRON",
+      "cron_expression": "45 1,7,15,23 * * *",
+      "requires_game": true
+    },
+    "火晶实验": {
+      "func_name": "crystal_lab",
+      "schedule_type": "CRON",
+      "cron_expression": "30 3,15 * * *",
+      "immediate": false,
+      "requires_game": true
+    },
+    "银行日存": {
+      "func_name": "deposit",
+      "schedule_type": "CRON",
+      "cron_expression": "30 23 * * *",
+      "requires_game": true
+    },
+    "每日奖励": {
+      "func_name": "daily_charge_reward",
+      "schedule_type": "CRON",
+      "cron_expression": "39 3 * * *",
+      "immediate": false,
+      "requires_game": true
+    },
+    "地心探险": {
+      "func_name": "earth_core",
+      "schedule_type": "CRON",
+      "cron_expression": "41 3 * * *",
+      "immediate": false,
+      "requires_game": true
+    },
+    "忠诚军牌": {
+      "func_name": "romulus_reward",
+      "schedule_type": "CRON",
+      "cron_expression": "30 11 * * *",
+      "requires_game": true
+    },
+    "火晶深度探秘": {
+      "func_name": "crystal_deep",
+      "schedule_type": "CRON",
+      "cron_expression": "47 21 * * *",
+      "requires_game": true
+    },
+    "竞技场": {
+      "func_name": "arena_fight",
+      "schedule_type": "CRON",
+      "cron_expression": "55 22 * * *",
+      "requires_game": true
+    },
+    "领取体力": {
+      "func_name": "strength_cans",
+      "schedule_type": "CRON",
+      "cron_expression": "45 11,18 * * *",
+      "immediate": false,
+      "requires_game": true
+    }
+  },
+  "野外": {
+    "统帅领取": {
+      "func_name": "daily_commander_reward",
+      "schedule_type": "CRON",
+      "cron_expression": "37 3 * * *",
+      "immediate": false,
+      "requires_game": true
+    },
+    "游荡商人": {
+      "func_name": "store_purchase",
+      "schedule_type": "CRON",
+      "cron_expression": "43 3 * * *",
+      "requires_game": true
+    },
+    "免费招募": {
+      "func_name": "hero_recruit",
+      "schedule_type": "CRON",
+      "cron_expression": "3 0-12 * * *",
+      "requires_game": true
+    },
+    "采集": {
+      "func_name": "mining",
+      "schedule_type": "INTERVAL",
+      "interval_seconds": 590,
+      "immediate": true,
+      "requires_game": true
+    },
+    "自动上车": {
+      "func_name": "monster_hunt",
+      "schedule_type": "INTERVAL",
+      "interval_seconds": 30,
+      "requires_game": true
+    },
+    "自动打巨兽": {
+      "func_name": "monster_hunter",
+      "schedule_type": "CRON",
+      "cron_expression": "13 * * * *",
+      "requires_game": true
+    },
+    "游历补给": {
+      "func_name": "travel_gains",
+      "schedule_type": "CRON",
+      "cron_expression": "30 8,9,16,17 * * *",
+      "requires_game": true
+    },
+    "任务奖励": {
+      "func_name": "daily_task_reward",
+      "schedule_type": "CRON",
+      "cron_expression": "7 * * * *",
+      "requires_game": true
+    },
+    "情报处理": {
+      "func_name": "intelligence",
+      "schedule_type": "CRON",
+      "cron_expression": "15 0,1,8,9,16,17 * * *",
+      "requires_game": true
+    },
+    "更新坐标": {
+      "func_name": "update_coordinate",
+      "schedule_type": "CRON",
+      "cron_expression": "41 5,17 * * *",
+      "immediate": true,
+      "requires_game": true
+    }
+  },
+  "联盟任务": {
+    "联盟捐献": {
+      "func_name": "alliance_donating",
+      "schedule_type": "CRON",
+      "cron_expression": "5 */2 * * *",
+      "requires_game": true
+    },
+    "联盟宝箱": {
+      "func_name": "alliance_treasure",
+      "schedule_type": "CRON",
+      "cron_expression": "45 */2 * * *",
+      "requires_game": true
+    },
+    "红包与互助": {
+      "func_name": "world_help",
+      "schedule_type": "INTERVAL",
+      "interval_seconds": 2,
+      "requires_game": true
+    }
+  },
+  "其他": {
+    "晨曦岛": {
+      "func_name": "island_gain",
+      "schedule_type": "CRON",
+      "cron_expression": "59 */2 * * *",
+      "requires_game": true
+    },
+    "更新上车记录": {
+      "func_name": "check_hunter_status",
+      "schedule_type": "CRON",
+      "cron_expression": "1 * * * *",
+      "immediate": true,
+      "requires_game": true
+    },
+    "更新盟矿": {
+      "func_name": "set_alliance_mine",
+      "schedule_type": "CRON",
+      "cron_expression": "40 7,19 * * *",
+      "requires_game": true
+    },
+    "阅读邮件": {
+      "func_name": "read_mails",
+      "schedule_type": "CRON",
+      "cron_expression": "3 */3 * * *",
+      "requires_game": true
+    }
+  },
+  "阶段性任务": {
+    "总动员刷任务": {
+      "func_name": "alliance_mobilization",
+      "schedule_type": "INTERVAL",
+      "interval_seconds": 150,
+      "requires_game": true
+    },
+    "冰封的宝藏": {
+      "func_name": "frozen_treasure",
+      "schedule_type": "CRON",
+      "cron_expression": "13 */2 * * *",
+      "requires_game": true
+    }
+  }
+}
