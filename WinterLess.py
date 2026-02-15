@@ -679,11 +679,11 @@ class WinterLess:
         pos = move_directions[event_type]
         x1, y1, x2, y2 = pos
         while not self.wait_for_image(anchor_list1[event_type], timeout=0):
-            self.swipe(x1, y1, x2, y2)
+            self.swipe(x1, y1, x2, y2, duration=800)
             if should_break():
                 return False
         while not self.wait_and_click(path, timeout=1):
-            self.swipe(x2 - 169, y2, x1, y1)
+            self.swipe(x2 - 169, y2, x1, y1, duration=800)
             time.sleep(0.5)
             if self.wait_for_image(anchor_list2[event_type], timeout=0) or should_break():
                 return False
@@ -846,7 +846,7 @@ class WinterLess:
         return wait_time
 
     @loop_timeout(timeout_seconds=600)
-    def monster_hunter(self, should_break, target_type: int = 0, stop_value: int = 180):
+    def monster_hunter(self, should_break, target_type: int = 1, stop_value: int = 180):
         result = ''
         target = {
             0: ['behemoth', 'group7', 'march_monster'],
@@ -1170,7 +1170,9 @@ class WinterLess:
         text = re.sub(r'\s+', ' ', text.strip())
         if "预约自动开启" not in text:
             print('没有预约巨熊，请联系管理员提前预约')
+            self.back_to_world()
             return False
+        self.back_to_world()
 
         date_match = re.search(r'(\d{4}-\d{1,2}-\d{1,2})', text)
         if date_match:

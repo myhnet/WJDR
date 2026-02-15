@@ -34,9 +34,9 @@ class ConfigManager:
             tab_name = item[1]['tab_name']
             device_id = item[1]['id']
             self.bear_hero[device_id] = {
-                'Archer': None,
-                'Shield': None,
-                'Spearman': 'Mia'
+                'archer': None,
+                'infantry': None,
+                'cavalry': 'Mia'
             }
             self.tab_controls[tab_name] = {}
             self.tab_controls[tab_name]['automator'] = MumuGameAutomator(mumu_device=device_id,

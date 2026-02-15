@@ -423,6 +423,7 @@ class TaskManagerGUI(tk.Tk):
             checkbox.grid(row=row_in_col, column=col, sticky='w', padx=15)
 
     def bear_group(self, parent, tab_name, column, row):
+        bear_settings = self.tab_controls[tab_name]['bear_settings']
         group_frame = ttk.LabelFrame(
             parent,
             text='自动打熊',
@@ -454,8 +455,12 @@ class TaskManagerGUI(tk.Tk):
         minute_combo.grid(row=0, column=3, sticky='w')
         ttk.Label(group_frame, text='分').grid(row=0, column=4, sticky='w')
 
+        # 处理必须在trace_add后面设置一次变量，否则可能不会触发
+        bear_settings['enabled_var'].set(bear_settings.get('enabled', 'false'))
+        bear_settings['start_hour_var'].set(bear_settings.get('start_hour', 0))
         hour_var.trace_add("write", lambda *args, t=tab_name: self.change_bear_start_time(t))
         minute_var.trace_add("write", lambda *args, t=tab_name: self.change_bear_start_time(t))
+        bear_settings['start_minute_var'].set(bear_settings.get('start_minute', 0))
 
         # 换装设置
         swap_frame = ttk.LabelFrame(
@@ -776,9 +781,6 @@ class TaskManagerGUI(tk.Tk):
 
         def execute_in_background():
             if bear_settings.get('enabled', False):
-                bear_settings['enabled_var'].set(bear_settings.get('enabled', 'false'))
-                bear_settings['start_hour_var'].set(bear_settings.get('start_hour', 0))
-                bear_settings['start_minute_var'].set(bear_settings.get('start_minute', 0))
 
                 bear_settings['archer_var'].set(bear_settings.get('archer_enabled', 'false'))
                 bear_settings['infantry_var'].set(bear_settings.get('infantry_enabled', 'false'))
@@ -1107,6 +1109,16 @@ class TaskManagerGUI(tk.Tk):
         task_manager = self.tab_controls[tab_name]['task_manager']
 
         def execute_in_background():
+
+            # 移除所有巨熊行动任务
+            tasks_to_remove = []
+            for task in task_manager.list_tasks():
+                if "巨熊行动 - " in task['name']:
+                    tasks_to_remove.append(task['task_id'])
+
+            for task_id in tasks_to_remove:
+                task_manager.remove_task(task_id)
+
             if enable:
                 hour = int(bear_settings['start_hour_var'].get())
                 minute = int(bear_settings['start_minute_var'].get())
@@ -1189,15 +1201,6 @@ class TaskManagerGUI(tk.Tk):
                     priority=1,
                     enabled=True
                 )
-
-            else:
-                tasks_to_remove = []
-                for task in task_manager.list_tasks():
-                    if "巨熊行动 - " in task['name']:
-                        tasks_to_remove.append(task['task_id'])
-
-                for task_id in tasks_to_remove:
-                    task_manager.remove_task(task_id)
 
         threading.Thread(target=execute_in_background, daemon=True).start()
 

@@ -9,7 +9,7 @@ from Hero import Hero
 class TaskList:
     def __init__(self, winterless: WinterLess):
         self.winterless = winterless
-        self.is_bear_day = False
+        self.is_bear_day = True
         self.bear_start_time = 0
         self.bear_back_list = {}
 
@@ -512,7 +512,7 @@ class TaskList:
         archer_hero = config.BEAR_HERO[device_id].get('archer', None)
         infantry_hero = config.BEAR_HERO[device_id].get('infantry', None)
         cavalry_hero = config.BEAR_HERO[device_id].get('cavalry', None)
-        hero1 = Hero(self.winterless)
+        hero = Hero(self.winterless)
         hero_list = [
             ('archer', archer_hero),
             ('infantry', infantry_hero),
@@ -522,19 +522,18 @@ class TaskList:
             hero_type, hero_name = hero_type
             if hero_name is None:
                 continue
-            pos = hero1.get_most_powerful_hero_pos(hero_type)
-            most_powerful = hero1.get_hero_name(pos[0], pos[1])
+            pos = hero.get_most_powerful_hero_pos(hero_type)
+            most_powerful = hero.get_hero_name(pos[0], pos[1])
             swap_list = [most_powerful, hero_name]
             hero.swap_hero_arms(swap_list)
-            self.bear_back_list[hero_type] = [hero_name, most_powerful]
+            self.bear_back_list[hero_type] = (hero_name, most_powerful)
 
     def bear_swap_back(self):
         if not self.is_bear_day:
             return '非巨熊行动日，不换回装备。'
-
-        hero2 = Hero(self.winterless)
+        hero = Hero(self.winterless)
         for hero_type, hero_names in self.bear_back_list.items():
-            hero2.swap_hero_arms(hero_names)
+            hero.swap_hero_arms(hero_names)
         self.bear_back_list = []
 
         # self.winterless.swap_hero_arm()

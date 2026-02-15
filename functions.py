@@ -94,8 +94,8 @@ HEROES_DATA = load_json_config('heroes_data.json')
 CHINESE_TO_ENGLISH_MAP = {hero["chinese_name"]: hero["english_name"] for hero in HEROES_DATA}
 ENGLISH_TO_CHINESE_MAP = {hero["english_name"]: hero["chinese_name"] for hero in HEROES_DATA}
 HEROES_BY_TYPE = {}
-for hero in HEROES_DATA:
-    type_ = hero["hero_type"]
+for f_item in HEROES_DATA:
+    type_ = f_item["hero_type"]
     if type_ not in HEROES_BY_TYPE:
         HEROES_BY_TYPE[type_] = []
-    HEROES_BY_TYPE[type_].append(hero["chinese_name"])
+    HEROES_BY_TYPE[type_].append(f_item["chinese_name"])
