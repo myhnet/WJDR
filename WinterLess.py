@@ -328,12 +328,9 @@ class WinterLess:
         self.swipe(516, 1400, 548, 500)
         time.sleep(0.5)
         output = output + self.get_screen_text((200, 1350, 800, 1500))
-        print(output)
         output = self.extract_numbers_with_context(output)
-        print(output)
         if output:
             for i in output:
-                print(i['task_name'], i['collected'], i['total'])
                 if i['collected'] < i['total']:
                     if i['task_name'] == '冰原巨兽':
                         self.monster_target.update({'turtle': True})
@@ -364,12 +361,10 @@ class WinterLess:
     def monster_hunt(self, should_break):
         result = ''
         self.back_to_world()
-        print('back to world')
 
         # (200, 281, 364, 351)为行军信息区域，尽量保持队伍信息区域干净，否则影响效果
         # 确认是否有队列
         while True:
-            print('start while')
             if should_break():
                 result = result + '获取队伍信息失败。'
                 return result
@@ -407,7 +402,6 @@ class WinterLess:
 
         monster_status = self.multiple_images_pos(monster_dict)
         for key, value in monster_status.items():
-            print(key, value)
             if self.monster_target[key] and value:
                 x = value[0] + 760
                 y = value[1] + 28
@@ -514,10 +508,10 @@ class WinterLess:
             if value is None:
                 continue
             co_mining_heros = {
-                'meal': ['Moli', 'Ahmose'],
-                'wood': ['Wayne', 'Moli'],
+                'meal': ['Molly', 'Ahmose'],
+                'wood': ['Wayne', 'Molly'],
                 'coal': ['Ahmose', 'Wayne'],
-                'iron': ['Wayne', 'Moli']
+                'iron': ['Wayne', 'Molly']
             }
             mine_name = mine_names[key]
 
@@ -544,9 +538,7 @@ class WinterLess:
                 if wait_time > 60 * 10:
                     self.back_to_world()
                     return mine_name, '返回时间超过10分钟。'
-                print(f'等待队伍返回.', end='')
                 while time.time() - current_time < wait_time:
-                    print('.', end='')
                     time.sleep(1)
             # 开采盟矿
             self.wait_and_click('templates/search_btn.png')
@@ -700,8 +692,7 @@ class WinterLess:
     def crystal_lab(self):
         # TODO: 此处需要测试
         result = ''
-        print('开始执行 crystal_lab')
-        pos = self.sidebar_searching('templates/Spearman_sidebar_anchor.png')
+        pos = self.sidebar_searching('templates/cavalry_sidebar_anchor.png')
         if pos:
             self.tap(pos[0], pos[1])
         else:
@@ -1065,33 +1056,26 @@ class WinterLess:
             # 等待刷新按钮出现，防止数据读取错误
             self.wait_for_image('templates/refresh_arena.png', timeout=2)
             text = self.get_screen_text(with_qwen3=True)
-            print(text)
             text = format_arena(text)
-            print(text)
             my_power = text.get('my_power_numeric', 0)
             time_left = text.get('remaining_challenges', 99)
 
             # 如果本身战力为0，继续循环
             if my_power == 0 or time_left == 99:
-                print('本身战力为0，继续循环')
                 continue
 
             if time_left == 0:
-                print('没有可挑战的对手，退出')
                 break
 
             # 找出五位玩家中战力最小的
             players = text['players']
             if len(players) != 5:
-                print('玩家数量不等于5，继续循环')
                 continue
             fight_index, fight_target = min(enumerate(players), key=lambda x: x[1]['combat_power_numeric'])
 
             # 如果战力差距过大，则刷新
             if fight_target['combat_power_numeric'] - 1000000 > my_power or refresh_required:
-                print('战力差距过大，正在刷新...')
                 if self.wait_and_click('templates/refresh_arena.png', threshold=0.9):
-                    print('刷新成功')
                     refresh_required = False
                     continue
 
@@ -1118,7 +1102,7 @@ class WinterLess:
     @loop_timeout(timeout_seconds=60)
     def crystal_deep(self, should_break):
         result = ''
-        pos = self.sidebar_searching('templates/Shield_sidebar_anchor.png')
+        pos = self.sidebar_searching('templates/infantry_sidebar_anchor.png')
         if not pos:
             result = result + '定位失败，结束任务。'
             self.back_to_world()
@@ -1143,7 +1127,7 @@ class WinterLess:
 
     def romulus_reward(self):
         result = ''
-        pos = self.sidebar_searching('templates/Shield_sidebar_anchor.png')
+        pos = self.sidebar_searching('templates/infantry_sidebar_anchor.png')
         if not pos:
             result = result + '定位失败，结束任务。'
             self.back_to_world()
@@ -1160,7 +1144,7 @@ class WinterLess:
 
     def strength_cans(self):
         result = ''
-        pos = self.sidebar_searching('templates/Shield_sidebar_anchor.png')
+        pos = self.sidebar_searching('templates/infantry_sidebar_anchor.png')
         if not pos:
             result = result + '定位失败，结束任务。'
             self.back_to_world()
@@ -1179,63 +1163,6 @@ class WinterLess:
             self.wait_and_click('templates/claim3.png')
             result = result + self.monster_hunter(target_type=1, stop_value=180)
         return result
-
-    def recall_all_troops(self):
-        if not self.is_bear_day():
-            return '非巨熊行动日，不召回部队。'
-        self.back_to_world()
-        continue_retreat = True
-        i = 0
-        while continue_retreat:
-            pos = self.get_image_pos('templates/retreat.png')
-            if pos:
-                self.tap(pos[0], pos[1])
-                self.wait_and_click('templates/OK_btn.png')
-                i = i + 1
-            else:
-                continue_retreat = False
-        return f'召回了{i}支队伍'
-
-    def enable_pet_fight_buff(self):
-        if not self.is_bear_day():
-            return '非巨熊行动日，不开启宠物加成。'
-        self.back_to_world()
-        result = ''
-        if self.wait_for_image('templates/pet_fight_check.png', timeout=5):
-            result = result + '宠物加成已开启'
-            return True, result
-        if self.wait_and_click('templates/pet_anchor.png', timeout=1):
-            self.wait_and_click('templates/pet_fight.png', timeout=1)
-            self.wait_and_click('templates/pet_skill_butch.png', timeout=1)
-            if self.wait_and_click('templates/pet_quick_use_confirm.png', timeout=1):
-                result = result + '成功开启宠物加成'
-            else:
-                result = result + '宠物加成开启失败'
-        self.back_to_world()
-        return result
-
-    def swap_hero_arm(self, swap_list: dict):
-        if not self.is_bear_day():
-            return '非巨熊行动日，不更换英雄装备。'
-        for value in swap_list.values():
-            source = value[0]
-            target = value[1]
-            self.get_on_off_hero_arms(source, 'off')
-            self.get_on_off_hero_arms(target, 'on')
-
-    @loop_timeout(timeout_seconds=30)
-    def get_on_off_hero_arms(self, should_break, hero_name, operation='on'):
-        path = f'templates/heros/{hero_name}_large.png'
-        self.back_to_world()
-        self.wait_and_click('templates/2.hero.png')
-        while not self.wait_and_click(path):
-            if should_break():
-                return False
-            self.swipe(500, 850, 500, 300)
-        self.wait_and_click('templates/hero_arms.png')
-        self.wait_and_click(f'templates/hero_arms_get_{operation}.png')
-        self.back_to_world()
-        return True
 
     def is_bear_day(self):
         self.event_locate(path='templates/bear_btn.png')

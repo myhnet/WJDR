@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 from pathlib import Path
 from typing import Tuple, List
@@ -47,9 +49,9 @@ class Hero:
             return image
         return None
 
-    def get_most_powerful_hero_pos(self, hero_type: int):
-        types = ['Archer', 'Shield', 'Spearman']
-        hero_type = types[hero_type]
+    def get_most_powerful_hero_pos(self, hero_type: str):
+        # types = ['archer', 'infantry', 'cavalry']
+        hero_type = hero_type
         self.tap(1021, 54)
         self.wait_and_click('templates/power.png')
         poses = self.get_images_pos(f'templates/{hero_type}_hero_anchor.png')
@@ -100,6 +102,7 @@ class Hero:
             self.swipe(500, 850, 500, 300)
         self.wait_and_click('templates/hero_arms.png')
         self.wait_and_click(f'templates/hero_arms_get_{operation}.png')
+        time.sleep(0.5)
         self.back()
 
     def swap_hero_arms(self, swap_list: List):

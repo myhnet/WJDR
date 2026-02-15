@@ -1,17 +1,15 @@
 # task_manager_gui_optimized.py - 优化版任务管理器图形界面
-import json
-import os
 import random
 import threading
-import time
 import tkinter as tk
 from datetime import datetime
 from tkinter import ttk, messagebox, scrolledtext, filedialog
 
-from MumuManager import MumuGameAutomator, ADBController
-from WinterLess import WinterLess
+import config
+from functions import *
+from MumuManager import ADBController
+from TaskQueueManager import ScheduleType, GameTaskManager
 from TaskList import TaskList
-from TaskQueueManager import GameTaskManager, ScheduleType
 
 
 class TaskManagerGUI(tk.Tk):
@@ -19,8 +17,6 @@ class TaskManagerGUI(tk.Tk):
 
     def __init__(self):
         super().__init__()
-
-        self.mmm_path = ''
 
         # 构建主框架
         self.title('无尽解脱器')
@@ -71,7 +67,6 @@ class TaskManagerGUI(tk.Tk):
         self.status_label.pack(side=tk.LEFT, padx=10)
 
         self.game_config = "game_tasks_config.json"
-        self.sys_config = "sys_config.json"
 
         # 设置样式
         self.setup_styles()
@@ -84,23 +79,19 @@ class TaskManagerGUI(tk.Tk):
         self.update_interval = 2000  # 2秒更新一次
         self.partial_updates = True  # 启用部分更新
 
-        # 从JSON文件加载任务定义并立即转换格式
-        raw_task_definitions = self.load_task_definitions_from_json()
-        self.task_definitions = self._convert_task_definitions(raw_task_definitions)
+        self.task_definitions = self._convert_task_definitions(config.TASK_DEFINITION)
 
         self.function_groups = {}
         for group_name, functions in self.task_definitions.items():
             self.function_groups[group_name] = list(functions.keys())
 
-        self.default_config = self.create_default_config()
-
         # 创建界面
         # self.create_widgets()
         self.all_paused = False
 
-        #
-        self.tab_controls = {}  # 新增：存储tab_name -> 控件字典
-        self.current_tabs = {}  # 存储当前打开的tab信息
+        # 从config.py加载标签页控制数据
+        self.tab_controls = config.TAB_CONTROLS
+        self.mmm_path = config.MMM_PATH
 
         # 启动界面更新
         self.start_update_loop()
@@ -115,20 +106,8 @@ class TaskManagerGUI(tk.Tk):
     def game_init(self):
         try:
             # 加载配置文件
-            config_file = self.sys_config
-            if not os.path.exists(config_file):
-                return False
-            with open(config_file, 'r', encoding='utf-8') as f:
-                config_data = json.load(f)
-
-            # 处理meta data并得到mumu_path
-            meta = config_data.pop('_metadata', None)
-            if 'mumu_path' in meta:
-                mmm_path = meta['mumu_path']
-                self.file_path_var.set(mmm_path)
-                self.mmm_path = mmm_path
-            else:
-                return False
+            config_data = config.SYS_CONFIG
+            self.file_path_var.set(self.mmm_path)
             items = ['id', 'name', 'tab_name', 'state']
             for value in config_data.values():
                 for item in items:
@@ -173,25 +152,11 @@ class TaskManagerGUI(tk.Tk):
         # 构建自己的数据块
         tab_name = data['tab_name']
         name = data['name']
-        device_id = data['id']
-        self.tab_controls[tab_name] = {}
         self.tab_controls[tab_name]['update_running'] = True
-        self.tab_controls[tab_name]['last_history_hash'] = 0
-        self.tab_controls[tab_name]['last_upcoming_hash'] = 0
-        self.tab_controls[tab_name]['last_update_time'] = 0
-        self.tab_controls[tab_name]['current_config'] = self.load_config(tab_name)
-        self.tab_controls[tab_name]['automator'] = MumuGameAutomator(mumu_device=device_id,
-                                                                     game_package="com.gof.china",
-                                                                     mmm_path=self.mmm_path)
         automator = self.tab_controls[tab_name]['automator']
-        automator.start_game()
-        self.tab_controls[tab_name]['winter'] = WinterLess(automator)
-        winter = self.tab_controls[tab_name]['winter']
-        self.tab_controls[tab_name]['tasks'] = TaskList(winter)
-        tasks = self.tab_controls[tab_name]['tasks']
-        self.tab_controls[tab_name]['task_manager'] = GameTaskManager(tasks, automator.adb.device_name)
-
-        self.tab_controls[tab_name]['checkbox_vars'] = {}
+        self.tab_controls[tab_name]['tasks'] = TaskList(self.tab_controls[tab_name]['winter'])
+        self.tab_controls[tab_name]['task_manager'] = GameTaskManager(self.tab_controls[tab_name]['tasks'],
+                                                                      automator.adb.device_name)
 
         # 创建主框架
         tab_frame = ttk.Frame(parent, padding="5")
@@ -509,39 +474,43 @@ class TaskManagerGUI(tk.Tk):
         archer_hero = tk.StringVar()
         self.tab_controls[tab_name]['bear_settings']['archer_hero_var'] = archer_hero
         archer_combo = ttk.Combobox(swap_frame, textvariable=archer_hero, width=8, state='readonly',
-                                    values=['无', '布拉德利', '修拉', '亨德里克', '韦恩'])
+                                    values=get_heroes_by_type('archer'))
         archer_combo.grid(row=0, column=1, sticky='w')
         archer_combo.current(0)
         self.tab_controls[tab_name]['bear_settings']['archer_combo'] = archer_combo
 
-        shield_var = tk.BooleanVar()
-        self.tab_controls[tab_name]['bear_settings']['shield_var'] = shield_var
+        infantry_var = tk.BooleanVar()
+        self.tab_controls[tab_name]['bear_settings']['infantry_var'] = infantry_var
 
-        shield_checkbox = ttk.Checkbutton(swap_frame, text='盾', variable=shield_var,
-                                          command=lambda n='shield', t=tab_name:
-                                          self.show_hidden_sub(n, t))
-        shield_checkbox.grid(row=1, column=0, sticky='w', padx=5)
-        shield_hero = tk.StringVar()
-        self.tab_controls[tab_name]['bear_settings']['shield_hero_var'] = shield_hero
-        shield_combo = ttk.Combobox(swap_frame, textvariable=shield_hero, width=8, state='readonly',
-                                    values=['无', '赫克托', '马格努斯', '加托', '艾迪丝'])
-        shield_combo.grid(row=1, column=1, sticky='w')
-        shield_combo.current(0)
-        self.tab_controls[tab_name]['bear_settings']['shield_combo'] = shield_combo
+        infantry_checkbox = ttk.Checkbutton(swap_frame, text='盾', variable=infantry_var,
+                                            command=lambda n='infantry', t=tab_name:
+                                            self.show_hidden_sub(n, t))
+        infantry_checkbox.grid(row=1, column=0, sticky='w', padx=5)
+        infantry_hero = tk.StringVar()
+        self.tab_controls[tab_name]['bear_settings']['infantry_hero_var'] = infantry_hero
+        infantry_combo = ttk.Combobox(swap_frame, textvariable=infantry_hero, width=8, state='readonly',
+                                      values=get_heroes_by_type('infantry'))
+        infantry_combo.grid(row=1, column=1, sticky='w')
+        infantry_combo.current(0)
+        self.tab_controls[tab_name]['bear_settings']['infantry_combo'] = infantry_combo
 
-        spear_var = tk.BooleanVar()
-        self.tab_controls[tab_name]['bear_settings']['spearman_var'] = spear_var
-        spear_checkbox = ttk.Checkbutton(swap_frame, text='矛', variable=spear_var,
-                                         command=lambda n='spearman', t=tab_name:
-                                         self.show_hidden_sub(n, t))
-        spear_checkbox.grid(row=2, column=0, sticky='w', padx=5)
-        spearman_hero = tk.StringVar()
-        self.tab_controls[tab_name]['bear_settings']['spearman_hero_var'] = spearman_hero
-        spear_combo = ttk.Combobox(swap_frame, textvariable=spearman_hero, width=8, state='readonly',
-                                   values=['无', '米娅', '弗雷德', '索妮娅', '哥顿'])
-        spear_combo.grid(row=2, column=1, sticky='w')
-        spear_combo.current(0)
-        self.tab_controls[tab_name]['bear_settings']['spearman_combo'] = spear_combo
+        cavalry_var = tk.BooleanVar()
+        self.tab_controls[tab_name]['bear_settings']['cavalry_var'] = cavalry_var
+        cavalry_checkbox = ttk.Checkbutton(swap_frame, text='矛', variable=cavalry_var,
+                                           command=lambda n='cavalry', t=tab_name:
+                                           self.show_hidden_sub(n, t))
+        cavalry_checkbox.grid(row=2, column=0, sticky='w', padx=5)
+        cavalry_hero = tk.StringVar()
+        self.tab_controls[tab_name]['bear_settings']['cavalry_hero_var'] = cavalry_hero
+        cavalry_combo = ttk.Combobox(swap_frame, textvariable=cavalry_hero, width=8, state='readonly',
+                                     values=get_heroes_by_type('cavalry'))
+        cavalry_combo.grid(row=2, column=1, sticky='w')
+        cavalry_combo.current(0)
+        self.tab_controls[tab_name]['bear_settings']['cavalry_combo'] = cavalry_combo
+
+        archer_hero.trace_add("write", lambda *args, t=tab_name, h='archer': self.change_bear_hero(t, h))
+        infantry_hero.trace_add("write", lambda *args, t=tab_name, h='infantry': self.change_bear_hero(t, h))
+        cavalry_hero.trace_add("write", lambda *args, t=tab_name, h='cavalry': self.change_bear_hero(t, h))
 
     def start_update_loop(self):
         """启动更新循环"""
@@ -807,23 +776,26 @@ class TaskManagerGUI(tk.Tk):
 
         def execute_in_background():
             if bear_settings.get('enabled', False):
-
                 bear_settings['enabled_var'].set(bear_settings.get('enabled', 'false'))
                 bear_settings['start_hour_var'].set(bear_settings.get('start_hour', 0))
                 bear_settings['start_minute_var'].set(bear_settings.get('start_minute', 0))
 
                 bear_settings['archer_var'].set(bear_settings.get('archer_enabled', 'false'))
-                bear_settings['shield_var'].set(bear_settings.get('shield_enabled', 'false'))
-                bear_settings['spearman_var'].set(bear_settings.get('spearman_enabled', 'false'))
+                bear_settings['infantry_var'].set(bear_settings.get('infantry_enabled', 'false'))
+                bear_settings['cavalry_var'].set(bear_settings.get('cavalry_enabled', 'false'))
 
-                bear_settings['archer_hero_var'].set(bear_settings.get('archer_hero', '无'))
-                bear_settings['shield_hero_var'].set(bear_settings.get('shield_hero', '无'))
-                bear_settings['spearman_hero_var'].set(bear_settings.get('spearman_hero', '无'))
+                archer_hero = get_chinese_name(bear_settings.get('archer_hero', '无'))
+                infantry_hero = get_chinese_name(bear_settings.get('infantry_hero', '无'))
+                cavalry_hero = get_chinese_name(bear_settings.get('cavalry_hero', '无'))
+
+                bear_settings['archer_hero_var'].set(archer_hero)
+                bear_settings['infantry_hero_var'].set(infantry_hero)
+                bear_settings['cavalry_hero_var'].set(cavalry_hero)
 
                 # self.enable_disable_bear_tasks(tab_name, bear_settings, enable=True)
                 self.show_hidden_sub('archer', tab_name)
-                self.show_hidden_sub('shield', tab_name)
-                self.show_hidden_sub('spearman', tab_name)
+                self.show_hidden_sub('infantry', tab_name)
+                self.show_hidden_sub('cavalry', tab_name)
 
                 pass
             for group_name, functions in current_config.items():
@@ -859,16 +831,6 @@ class TaskManagerGUI(tk.Tk):
 
         threading.Thread(target=execute_in_background, daemon=True).start()
 
-    def create_default_config(self):
-        """创建默认配置"""
-        config = {}
-        for group_name, functions in self.task_definitions.items():
-            config[group_name] = {}
-            for func_name in functions:
-                # 默认情况下，大部分功能不启用
-                config[group_name][func_name] = False
-        return config
-
     def generate_config_name(self, tab_name: str):
         config_file = os.path.basename(self.game_config)
         dir_name = os.path.dirname(self.game_config)
@@ -878,47 +840,6 @@ class TaskManagerGUI(tk.Tk):
         else:
             config_file = f'{dir_name}{name}_{tab_name}.{ext}'
         return config_file
-
-    def load_config(self, tab_name: str):
-        """从配置文件加载配置"""
-        try:
-            config_file = self.generate_config_name(tab_name)
-            if os.path.exists(config_file):
-                with open(config_file, 'r', encoding='utf-8') as f:
-                    config_data = json.load(f)
-
-                # 移除元数据部分（如果有）
-                if "_metadata" in config_data:
-                    config_data.pop("_metadata")
-
-                if "bear_settings" in config_data:
-                    self.tab_controls[tab_name]['bear_settings'] = config_data.pop("bear_settings")
-
-                # 验证并修复配置文件结构
-                merged_config = self.validate_config(config_data)
-                # last_modified = os.path.getmtime(config_file)
-
-                # 如果配置有变化，保存修复后的配置
-                if merged_config != config_data:
-                    self.tab_controls[tab_name] = {'current_config': merged_config}
-                    self.save_config(tab_name)
-                return merged_config
-            else:
-                print("配置文件不存在，创建默认配置")
-                default_config = self.create_default_config()
-                # 创建tab_controls条目以便保存配置
-                if tab_name not in self.tab_controls:
-                    self.tab_controls[tab_name] = {}
-                self.tab_controls[tab_name]['current_config'] = default_config
-                self.tab_controls[tab_name]['checkbox_vars'] = {}
-                # 保存默认配置到文件
-                self.save_config(tab_name)
-                return default_config
-
-        except Exception as e:
-            print(f"加载配置文件时出错: {e}")
-            print("使用默认配置")
-            return self.create_default_config()
 
     def save_config(self, tab_name: str):
         """保存配置到文件"""
@@ -935,9 +856,10 @@ class TaskManagerGUI(tk.Tk):
                     if var_name in checkbox_vars:
                         config_data[group_name][func_name] = checkbox_vars[var_name].get()
                     else:
+                        pass
                         # 如果复选框变量不存在，使用默认值
-                        config_data[group_name][func_name] = self.default_config.get(group_name, {}).get(func_name,
-                                                                                                         False)
+                        # config_data[group_name][func_name] =
+                        # self.default_config.get(group_name, {}).get(func_name,False)
 
             # 打熊配置
             config_data["bear_settings"] = {
@@ -945,11 +867,11 @@ class TaskManagerGUI(tk.Tk):
                 "start_hour": bear_setting['start_hour_var'].get(),
                 "start_minute": bear_setting['start_minute_var'].get(),
                 "archer_enabled": bear_setting['archer_var'].get(),
-                "archer_hero": bear_setting['archer_hero_var'].get(),
-                "shield_enabled": bear_setting['shield_var'].get(),
-                "shield_hero": bear_setting['shield_hero_var'].get(),
-                "spearman_enabled": bear_setting['spearman_var'].get(),
-                "spearman_hero": bear_setting['spearman_hero_var'].get()
+                "archer_hero": get_english_name(bear_setting['archer_hero_var'].get()),
+                "infantry_enabled": bear_setting['infantry_var'].get(),
+                "infantry_hero": get_english_name(bear_setting['infantry_hero_var'].get()),
+                "cavalry_enabled": bear_setting['cavalry_var'].get(),
+                "cavalry_hero": get_english_name(bear_setting['cavalry_hero_var'].get())
             }
 
             # 添加元数据
@@ -967,38 +889,6 @@ class TaskManagerGUI(tk.Tk):
         except Exception as e:
             print(f"保存配置文件时出错: {e}")
             return False
-
-    def validate_config(self, config_data):
-        """验证并修复配置数据的结构，保留相同部分，缺失部分用默认值补充"""
-        try:
-            # 创建默认配置作为基础
-            default_config = self.create_default_config()
-            merged_config = {}
-
-            # 遍历所有应该存在的组
-            for group_name in self.function_groups.keys():
-                merged_config[group_name] = {}
-
-                # 如果配置文件中存在该组
-                if group_name in config_data and isinstance(config_data[group_name], dict):
-                    # 遍历该组应该包含的所有功能
-                    for func_name in self.function_groups[group_name]:
-                        # 如果配置文件中存在该功能且值为布尔类型，使用配置文件中的值
-                        if (func_name in config_data[group_name]
-                                and isinstance(config_data[group_name][func_name], bool)):
-                            merged_config[group_name][func_name] = config_data[group_name][func_name]
-                        else:
-                            # 否则使用默认值
-                            merged_config[group_name][func_name] = default_config[group_name][func_name]
-                else:
-                    # 组不存在，使用默认配置
-                    merged_config[group_name] = default_config[group_name]
-
-            return merged_config
-
-        except Exception as e:
-            print(f"验证配置文件时出错: {e}，使用默认配置")
-            return self.create_default_config()
 
     def add_or_remove_task(self, tab_name: str, group_name, func_name, enabled):
         """根据复选框状态添加或移除任务"""
@@ -1194,20 +1084,6 @@ class TaskManagerGUI(tk.Tk):
         if isinstance(tab_data, dict):
             self.create_widgets(tab_frame, tab_data)
 
-    @staticmethod
-    def load_task_definitions_from_json():
-        """从JSON文件加载任务定义"""
-        try:
-            with open('task_definitions.json', 'r', encoding='utf-8') as f:
-                task_definitions_data = json.load(f)
-            return task_definitions_data
-        except FileNotFoundError:
-            print("警告: 未找到task_definitions.json文件，使用默认配置")
-            return {}
-        except json.JSONDecodeError:
-            print("错误: task_definitions.json文件格式不正确")
-            return {}
-
     def enable_disable_bear_hunting(self, tab_name):
         bear_settings = self.tab_controls[tab_name]['bear_settings']
         enabled = bear_settings['enabled_var'].get()
@@ -1218,7 +1094,7 @@ class TaskManagerGUI(tk.Tk):
             pass
             self.enable_disable_bear_tasks(tab_name, bear_settings, enable=False)
 
-    def change_bear_start_time(self, tab_name,):
+    def change_bear_start_time(self, tab_name, ):
         bear_settings = self.tab_controls[tab_name]['bear_settings']
         enabled = bear_settings.get('enabled', False)
 
@@ -1232,12 +1108,10 @@ class TaskManagerGUI(tk.Tk):
 
         def execute_in_background():
             if enable:
-                hour = bear_settings['start_hour_var'].get()
-                minute = bear_settings['start_minute_var'].get()
+                hour = int(bear_settings['start_hour_var'].get())
+                minute = int(bear_settings['start_minute_var'].get())
 
                 def get_time_ahead(h, m, ahead_minutes):
-                    m = int(m)
-                    h = int(h)
                     if m < ahead_minutes:
                         m = m - ahead_minutes + 60
                         h = h - 1 if h > 0 else 23
@@ -1248,11 +1122,41 @@ class TaskManagerGUI(tk.Tk):
 
                 cron_expression_fight = f"{minute} {hour} * * *"
 
+                hour_check, minute_check = get_time_ahead(hour, minute, 15)
+                cron_expression_check = f"{minute_check} {hour_check} * * *"
+
+                hour_swap, minute_swap = get_time_ahead(hour, minute, 14)
+                cron_expression_swap = f"{minute_swap} {hour_swap} * * *"
+
                 hour_pet, minute_pet = get_time_ahead(hour, minute, 10)
                 cron_expression_pet = f"{minute_pet} {hour_pet} * * *"
 
                 hour_recall, minute_recall = get_time_ahead(hour, minute, 5)
                 cron_expression_recall = f"{minute_recall} {hour_recall} * * *"
+
+                if minute < 30:
+                    minute_back = minute + 30
+                    hour_back = hour
+                else:
+                    minute_back = minute - 30
+                    hour_back = hour + 1 if hour < 23 else 0
+                cron_expression_back = f"{minute_back} {hour_back} * * *"
+
+                task_manager.add_cron_task(
+                    name="巨熊行动 - 检查日期",
+                    func=self._get_tasklist_function('bear_day_check'),
+                    cron_expression=cron_expression_check,
+                    priority=1,
+                    enabled=True
+                )
+
+                task_manager.add_cron_task(
+                    name="巨熊行动 - 更换装备",
+                    func=self._get_tasklist_function('bear_swap'),
+                    cron_expression=cron_expression_swap,
+                    priority=1,
+                    enabled=True
+                )
 
                 task_manager.add_cron_task(
                     name="巨熊行动 - 开启宠物",
@@ -1277,6 +1181,15 @@ class TaskManagerGUI(tk.Tk):
                     priority=1,
                     enabled=True
                 )
+
+                task_manager.add_cron_task(
+                    name="巨熊行动 - 装备换回",
+                    func=self._get_tasklist_function('bear_swap_back'),
+                    cron_expression=cron_expression_back,
+                    priority=1,
+                    enabled=True
+                )
+
             else:
                 tasks_to_remove = []
                 for task in task_manager.list_tasks():
@@ -1291,13 +1204,28 @@ class TaskManagerGUI(tk.Tk):
     def show_hidden_sub(self, name, tab_name):
         bear_settings = self.tab_controls[tab_name]['bear_settings']
         combobox = bear_settings[f'{name}_combo']
-        soldier_types = ['archer', 'shield', 'spearman']
+        soldier_types = ['archer', 'infantry', 'cavalry']
         pos = soldier_types.index(name)
         if bear_settings[f'{name}_var'].get():
             combobox.grid(row=pos, column=1, sticky='w')
         else:
             combobox.grid_remove()
+        self.change_bear_hero(tab_name, name)
         pass
+
+    def change_bear_hero(self, tab_name, hero_type):
+        bear_settings = self.tab_controls[tab_name]['bear_settings']
+        winter = self.tab_controls[tab_name]['winter']
+        device_id = winter.device_id
+        if bear_settings[f'{hero_type}_var'].get():
+            chinese_name = bear_settings[f'{hero_type}_hero_var'].get()
+            english_name = get_english_name(chinese_name)
+            config.BEAR_HERO[device_id][hero_type] = english_name
+        else:
+            try:
+                del config.BEAR_HERO[device_id][hero_type]
+            except KeyError:
+                pass
 
     def _convert_task_definitions(self, raw_definitions):
         """将从JSON加载的原始任务定义转换为内部使用的格式"""

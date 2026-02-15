@@ -1,13 +1,17 @@
+import config
 from functions import *
 from WinterLess import WinterLess
 from intelligence import IntelligenceDeal
 from bear import BearHunting
+from Hero import Hero
 
 
 class TaskList:
     def __init__(self, winterless: WinterLess):
         self.winterless = winterless
+        self.is_bear_day = False
         self.bear_start_time = 0
+        self.bear_back_list = {}
 
     def update_coordinate(self):
         if self.winterless.back_to_my_town(update_coordinate=True):
@@ -202,7 +206,7 @@ class TaskList:
         return result
 
     def soldier_training(self):
-        training_type = ['Archer', 'Spearman', 'Shielded']
+        training_type = ['archer', 'cavalry', 'infantry']
         training_paths = {}
         for i, item in enumerate(training_type):
             training_paths.update({i: f'templates/{item}_completed_world.png'})
@@ -364,7 +368,7 @@ class TaskList:
 
     def romulus_reward(self):
         return self.winterless.romulus_reward()
-    
+
     def intelligence(self):
         self.winterless.back_to_world()
         executor = IntelligenceDeal(self.winterless)
@@ -374,13 +378,46 @@ class TaskList:
     def strength_cans(self):
         return self.winterless.strength_cans()
 
+    def bear_day_check(self):
+        self.is_bear_day = self.winterless.is_bear_day()
+
     def recall_all_troops(self):
-        self.winterless.recall_all_troops()
+        if not self.is_bear_day:
+            return '非巨熊行动日，不召回部队。'
+        self.winterless.back_to_world()
+        continue_retreat = True
+        i = 0
+        while continue_retreat:
+            pos = self.winterless.get_image_pos('templates/retreat.png')
+            if pos:
+                self.winterless.tap(pos[0], pos[1])
+                self.winterless.wait_and_click('templates/OK_btn.png')
+                i = i + 1
+            else:
+                continue_retreat = False
+        return f'召回了{i}支队伍'
 
     def enable_pet_fight_buff(self):
-        self.winterless.enable_pet_fight_buff()
+        if not self.is_bear_day:
+            return '非巨熊行动日，不开启宠物加成。'
+        self.winterless.back_to_world()
+        result = ''
+        if self.winterless.wait_for_image('templates/pet_fight_check.png', timeout=5):
+            result = result + '宠物加成已开启'
+            return True, result
+        if self.winterless.wait_and_click('templates/pet_anchor.png', timeout=1):
+            self.winterless.wait_and_click('templates/pet_fight.png', timeout=1)
+            self.winterless.wait_and_click('templates/pet_skill_butch.png', timeout=1)
+            if self.winterless.wait_and_click('templates/pet_quick_use_confirm.png', timeout=1):
+                result = result + '成功开启宠物加成'
+            else:
+                result = result + '宠物加成开启失败'
+        self.winterless.back_to_world()
+        return result
 
     def bear_hunting(self):
+        if not self.is_bear_day:
+            return '非巨熊行动日，不进行巨熊狩猎。'
         target_players = [
             ['辣椒', '暧昧', '木瓜', '三千梨花树', '节能', '土豆嫂牛肉', 'xy520', '可乐',
              '乱怼', '荷华', '翅膀', '西瓜', '边边', '猴儿', '太美', '宫本'],
@@ -402,7 +439,7 @@ class TaskList:
             1: 'templates/group1.png'
         }
         device_id = self.winterless.device_id
-        assemble_interval = 350
+        assemble_interval = 345
 
         target_counter = len(target_players[device_id])
         for i in range(target_counter):
@@ -468,10 +505,37 @@ class TaskList:
                     break
         pass
 
-    def bear_swipe(self):
-        if os.path.exists('sys_config.json'):
-            with open('sys_config.json', 'r', encoding='utf-8') as f:
-                config = json.load(f)
+    def bear_swap(self):
+        if not self.is_bear_day:
+            return '非巨熊行动日，不换装备。'
+        device_id = self.winterless.device_id
+        archer_hero = config.BEAR_HERO[device_id].get('archer', None)
+        infantry_hero = config.BEAR_HERO[device_id].get('infantry', None)
+        cavalry_hero = config.BEAR_HERO[device_id].get('cavalry', None)
+        hero1 = Hero(self.winterless)
+        hero_list = [
+            ('archer', archer_hero),
+            ('infantry', infantry_hero),
+            ('cavalry', cavalry_hero)
+        ]
+        for hero_type in hero_list:
+            hero_type, hero_name = hero_type
+            if hero_name is None:
+                continue
+            pos = hero1.get_most_powerful_hero_pos(hero_type)
+            most_powerful = hero1.get_hero_name(pos[0], pos[1])
+            swap_list = [most_powerful, hero_name]
+            hero.swap_hero_arms(swap_list)
+            self.bear_back_list[hero_type] = [hero_name, most_powerful]
+
+    def bear_swap_back(self):
+        if not self.is_bear_day:
+            return '非巨熊行动日，不换回装备。'
+
+        hero2 = Hero(self.winterless)
+        for hero_type, hero_names in self.bear_back_list.items():
+            hero2.swap_hero_arms(hero_names)
+        self.bear_back_list = []
 
         # self.winterless.swap_hero_arm()
 
